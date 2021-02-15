@@ -3,65 +3,40 @@ module Main where
 
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad.Identity
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Network.HTTP.Simple
 import Data.Aeson
-import Data.Text as T
+import Data.Text as T hiding (last) 
 import GHC.Generics
 
-data Chat = Chat {
-                   id :: Int
-                 , first_name :: T.Text
-                 , username :: T.Text 
-                 , typeChat :: T.Text
-                 } deriving Show
 
-instance FromJSON Chat where
-  parseJSON (Object v) =
-    Chat <$> v .: "id" 
-         <*> v .: "first_name"
-         <*> v .: "username"
-         <*> v .: "type"
- 
-data From = From {
-                   from_id :: Int
-                 , is_bot :: Bool
-                 , from_first_name :: T.Text
-                 , from_username :: T.Text 
-                 , language_code :: T.Text
-                 } deriving Show
-
-instance FromJSON From where
-  parseJSON (Object v) =
-    From <$> v .: "id"
-         <*> v .: "is_bot" 
-         <*> v .: "first_name"
-         <*> v .: "username"
-         <*> v .: "language_code"                 
+data Chat = Chat { id :: Int } deriving (Show, Generic)              
 
 data Message = Message {
-                         message_id :: Int
-                       , from :: From
+                         message_id :: Int                  --    
                        , chat :: Chat
-                       , date :: Int 
-                       , text :: T.Text
-                       } deriving (Show, Generic)
-instance FromJSON Message                          
+                       } deriving (Show, Generic)             
 
-data Pastoral = Pastoral {
-                           update_id :: Int
-                         , message :: Message                      
-                         } deriving (Show, Generic)
-instance FromJSON Pastoral
+data MessageDate = MessageDate {
+                                 update_id :: Int
+                               , message :: Message                      
+                               } deriving (Show, Generic)
 
 data WholeObject = WholeObject {
                                   ok :: Bool
-                               ,  result :: [Pastoral] 
+                               ,  result :: [MessageDate] 
                                } deriving (Show, Generic)
+
+instance FromJSON Chat 
+instance FromJSON Message                                
+instance FromJSON MessageDate                               
 instance FromJSON WholeObject                               
+
+
 
 objectFromJSON :: LC.ByteString -> Maybe WholeObject
 objectFromJSON a = decode a
@@ -75,27 +50,53 @@ getToken fileName = readFile fileName
 messengerHost :: String
 messengerHost = "api.telegram.org/bot"
 
-apiMethod :: String
-apiMethod = "/getUpdates"
+getUpdates :: String
+getUpdates = "/getUpdates"
 
-stringRequest :: Request
-stringRequest = parseRequest_ $ 
-  mconcat ["https://", messengerHost, myToken, apiMethod]
+stringRequest :: String -> Request
+stringRequest str = parseRequest_ $ 
+  mconcat ["https://", messengerHost, myToken, str]
 
 sendRequest :: IO LC.ByteString
 sendRequest = do
-    res <- httpLBS $ stringRequest 
+    res <- httpLBS $ stringRequest getUpdates
     if (getResponseStatusCode res == 200 )
       then pure $ getResponseBody res
       else pure "Error! Broken request!"
     
+stringRepeat :: Maybe WholeObject -> String
+stringRepeat obj  = runIdentity $ do
+  let messageId = show $ message_id message' 
+  let chatId    = show $ Main.id $ chat message'
+  pure $ mconcat [
+                   "/copyMessage?chat_id=", chatId, 
+                   "&from_chat_id=",        chatId,
+                   "&message_id=",          messageId  
+                 ] 
+  where  
+    Just message' = message <$> last <$> result <$> obj                       
+
+sandRepeats :: Int -> String -> IO (Response LC.ByteString)
+sandRepeats n str  
+  | n <= 1 = repeatRequest
+  | otherwise = do
+                  repeatRequest
+                  sandRepeats (n-1) str 
+  where
+    repeatRequest = httpLBS $ stringRequest $ str                    
+                            
+                                                  
     
 
 
 main :: IO ()
 main = do
     x <- sendRequest
-    print $ objectFromJSON x
+    let obj = objectFromJSON x
+    print $ last <$> result <$> obj
+    sandRepeats 1 $ stringRepeat obj
+    print "Ok"
+    
 
 
 

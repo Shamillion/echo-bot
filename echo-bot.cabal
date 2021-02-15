@@ -49,7 +49,8 @@ executable echo-bot-exe
     , bytestring
     , text
     , http-conduit
-    , aeson    
+    , aeson
+    , mtl    
   default-language: Haskell2010 
 
 test-suite echo-bot-test
