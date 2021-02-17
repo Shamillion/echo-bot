@@ -49,14 +49,11 @@ objectFromJSON = decode
 myToken :: String
 myToken = getDataFromFile "../config.cfg" 1
 
---getToken :: String -> IO String
---getToken = readFile 
-
 messengerHost :: String
 messengerHost = "api.telegram.org/bot"
 
-getUpdates :: String
-getUpdates = "/getUpdates"
+getUpdates :: Int -> String
+getUpdates num = mconcat ["/getUpdates?offset=", show num]
 
 lastUpdateID = read $ getDataFromFile "../config.cfg" 2 :: Int
 
@@ -113,22 +110,27 @@ sandRepeats n str
 getUpdateID :: Maybe WholeObject -> Int 
 getUpdateID obj = val 
   where Just val = update_id <$> last <$> result <$> obj   
-    
+            
+endlessCycle :: Int -> IO ()
+endlessCycle updateID = do
+  x <- httpLBS $ stringRequest $ getUpdates updateID 
+  case getResponseStatusCode x == 200 of 
+    False -> print "Error! Broken request!"
+    _     -> do
+      let obj = objectFromJSON $ getResponseBody x
+      case result <$> obj of
+        Just [] -> endlessCycle updateID
+        _       -> do
+          let newUpdateID = 1 + getUpdateID obj
+          print $ last <$> result <$> obj
+          sandRepeats 3 $ stringRepeat obj
+          endlessCycle newUpdateID           
+                
 
-main :: IO ()
-main = do
-  x <- httpLBS $ stringRequest getUpdates -- sendRequest
-  let obj = objectFromJSON $ getResponseBody x
-  case result <$> obj of
-    Just [] -> main
-    _       -> do
-      if getUpdateID obj == lastUpdateID
-        then main
-        else do  
-            print $ result <$> obj
-            sandRepeats 3 $ stringRepeat obj
-            print "Ok"
-   --print $ myToken
-   --print $ lastUpdateID             
+           
              
-    
+main :: IO ()
+main = do 
+  endlessCycle 0 
+  --httpLBS $ stringRequest "/sendMessage?chat_id=195352543&text=Currently&reply_markup=%7B%22keyboard%22+%3A+%5B%5B%7B%22text%22%3A%221%22%7D%2C%7B%22text%22%3A%222%22%7D%2C+%7B%22text%22%3A%223%22%7D%2C+%7B%22text%22%3A%224%22%7D%2C+%7B%22text%22%3A%225%22%7D%5D%5D%2C+%22resize_keyboard%22+%3A+true%2C+%22one_time_keyboard%22+%3A+true%7D"
+  --print "OK"
