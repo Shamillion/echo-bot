@@ -35,6 +35,19 @@ data WholeObject = WholeObject
   }
   deriving (Show, Generic)
 
+newtype KeyboardButton = KeyboardButton
+  { text :: T.Text} deriving (Show, Generic) 
+  
+newtype KeyboardButtons = KeyboardButtons [KeyboardButton]  
+  deriving (Show, Generic) 
+  
+data ReplyKeyboardMarkup = ReplyKeyboardMarkup
+  { keyboard :: [KeyboardButtons],
+    resize_keyboard :: Bool,
+    one_time_keyboard :: Bool
+  }
+  deriving (Show, Generic)  
+
 instance FromJSON Chat
 
 instance FromJSON Message
@@ -42,6 +55,12 @@ instance FromJSON Message
 instance FromJSON MessageDate
 
 instance FromJSON WholeObject
+
+instance ToJSON KeyboardButton
+
+instance ToJSON KeyboardButtons
+
+instance ToJSON ReplyKeyboardMarkup
 
 objectFromJSON :: LC.ByteString -> Maybe WholeObject
 objectFromJSON = decode 
@@ -67,20 +86,11 @@ getDataFromFile fileName num =
     case num of
      1 -> pure firstLine
      _ -> pure secondLine
-    
-  
 
 stringRequest :: String -> Request
 stringRequest str =
   parseRequest_ $
     mconcat ["https://", messengerHost, myToken, str]
-
---sendRequest :: IO LC.ByteString
---sendRequest = do
-  --res <- httpLBS $ stringRequest getUpdates
-  --if getResponseStatusCode res == 200
-    --then pure $ getResponseBody res
-    --else pure "Error! Broken request!"
 
 stringRepeat :: Maybe WholeObject -> String
 stringRepeat obj = runIdentity $ do
@@ -110,6 +120,53 @@ sandRepeats n str
 getUpdateID :: Maybe WholeObject -> Int 
 getUpdateID obj = val 
   where Just val = update_id <$> last <$> result <$> obj   
+
+one :: KeyboardButton
+one = KeyboardButton 
+  {text = "1"}
+  
+two :: KeyboardButton
+two = KeyboardButton 
+  {text = "2"}
+  
+three :: KeyboardButton
+three = KeyboardButton 
+  {text = "3"}
+  
+four :: KeyboardButton
+four = KeyboardButton 
+  {text = "4"}        
+
+five :: KeyboardButton
+five = KeyboardButton 
+  {text = "5"}
+
+buttons :: KeyboardButtons
+buttons = KeyboardButtons [one, two, three, four, five]
+
+numRepeat :: ReplyKeyboardMarkup
+numRepeat = ReplyKeyboardMarkup
+  { keyboard = [buttons],
+    resize_keyboard = True,
+    one_time_keyboard = True
+  }
+  
+sendKeybord :: String -> String
+sendKeybord str = Prelude.foldl fun "" str
+  where
+    fun acc c = 
+      acc ++ case c of
+                '{' -> "%7B"
+                '}' -> "%7D"
+                '[' -> "%5B" 
+                ']' -> "%5D"
+                '\"'-> "%22"
+                ' ' -> "+"
+                ',' -> "%2C"
+                ':' -> "%3A"
+                _   -> [c]
+                
+    
             
 endlessCycle :: Int -> IO ()
 endlessCycle updateID = do
@@ -126,11 +183,10 @@ endlessCycle updateID = do
           sandRepeats 3 $ stringRepeat obj
           endlessCycle newUpdateID           
                 
-
            
-             
 main :: IO ()
 main = do 
-  endlessCycle 0 
-  --httpLBS $ stringRequest "/sendMessage?chat_id=195352543&text=Currently&reply_markup=%7B%22keyboard%22+%3A+%5B%5B%7B%22text%22%3A%221%22%7D%2C%7B%22text%22%3A%222%22%7D%2C+%7B%22text%22%3A%223%22%7D%2C+%7B%22text%22%3A%224%22%7D%2C+%7B%22text%22%3A%225%22%7D%5D%5D%2C+%22resize_keyboard%22+%3A+true%2C+%22one_time_keyboard%22+%3A+true%7D"
-  --print "OK"
+  --endlessCycle 0 
+  httpLBS $ stringRequest $ "/sendMessage?chat_id=195352543&text=Currently%20set%20to%204%20repetitions&reply_markup=" ++ (sendKeybord $ LC.unpack $ encode numRepeat)
+  print "OK"
+
