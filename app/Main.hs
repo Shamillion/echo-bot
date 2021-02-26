@@ -3,6 +3,8 @@
 
 module Main where
 
+import qualified Data.Map.Lazy as Map
+import Control.Monad
 import Control.Monad.Identity (Identity (runIdentity))
 import Data.Aeson
 import qualified Data.ByteString as B
@@ -15,12 +17,15 @@ import Network.HTTP.Simple
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 
-newtype Chat = Chat {id :: Int} deriving (Show, Generic)
+data Chat = Chat 
+  { id :: Int
+  , username :: T.Text  
+  } deriving (Show, Generic)
 
 data Message = Message
   { message_id :: Int
   , chat :: Chat
-  , text :: Maybe T.Text
+  , textM :: Maybe T.Text
   }
   deriving (Show)
 
@@ -37,7 +42,7 @@ data WholeObject = WholeObject
   deriving (Show, Generic)
 
 newtype KeyboardButton = KeyboardButton
-  {number :: T.Text}
+  {text :: T.Text}
   deriving (Show, Generic)
 
 newtype KeyboardButtons = KeyboardButtons [KeyboardButton]
@@ -55,9 +60,9 @@ instance FromJSON Chat
 instance FromJSON Message where
   parseJSON (Object v) = do
     message_id <- v .: "message_id"
-    chat <- v .: "chat"
-    text <- v .:? "text"
-    pure $ Message message_id chat text
+    chat  <- v .: "chat"
+    textM <- v .:? "text"
+    pure $ Message message_id chat textM
 
 instance FromJSON MessageDate
 
@@ -78,9 +83,12 @@ myToken = getDataFromFile "../config.cfg" 1
 messengerHost :: String
 messengerHost = "api.telegram.org/bot"
 
+type UpdateID = Int
+
 getUpdates :: Int -> String
 getUpdates num = mconcat ["/getUpdates?offset=", show num]
 
+lastUpdateID :: UpdateID
 lastUpdateID = read $ getDataFromFile "../config.cfg" 2 :: Int
 
 getDataFromFile :: String -> Int -> String
@@ -99,72 +107,69 @@ stringRequest str =
   parseRequest_ $
     mconcat ["https://", messengerHost, myToken, str]
 
-stringRepeat :: Maybe WholeObject -> String
-stringRepeat obj = runIdentity $ do
-  let messageId = show $ message_id message'
-  let chatId = show $ Main.id $ chat message'
-  pure $
-    mconcat
-      [ "/copyMessage?chat_id="
-      , chatId
-      , "&from_chat_id="
-      , chatId
-      , "&message_id="
-      , messageId
-      ]
- where
-  Just message' = message <$> last <$> result <$> obj
+sandRepeats :: Maybe WholeObject -> 
+               (UpdateID, Map.Map Username NumRepeats) -> IO ()
+sandRepeats obj env = 
+  replicateM_ num $ httpLBS $ stringRequest $ runIdentity $ do
+      let messageId = show $ message_id message'
+      let chatId = show $ Main.id $ chat message'      
+      pure $
+        mconcat
+          [ "/copyMessage?chat_id="
+          , chatId
+          , "&from_chat_id="
+          , chatId
+          , "&message_id="
+          , messageId
+          ]
+     where
+      Just message' = message <$> last <$> result <$> obj
+      usrName = username $ chat message'
+      num = case (Map.lookup usrName $ snd env) of
+              Nothing -> 3
+              Just n  -> n
 
-sandRepeats :: Int -> String -> IO (Response LC.ByteString)
-sandRepeats n str
-  | n <= 1 = repeatRequest
-  | otherwise = do
-    repeatRequest
-    sandRepeats (n -1) str
- where
-  repeatRequest = httpLBS $ stringRequest $ str
-
-getUpdateID :: Maybe WholeObject -> Int
+getUpdateID :: Maybe WholeObject -> UpdateID
 getUpdateID obj = val
  where
   Just val = update_id <$> last <$> result <$> obj
 
-ifKeyWord :: Maybe WholeObject -> IO ()
-ifKeyWord obj = case text message' of
-  Just "/repeat" -> print "It's necessary to send keybord."
-  Just "/help" -> print "It's necessary to send description."
-  _ -> print ()
+ifKeyWord :: Maybe WholeObject -> IO (Response LC.ByteString)
+ifKeyWord obj = case textM message' of
+  Just "/repeat" -> sendKeyboard obj
+  Just "/help" -> httpLBS $ stringRequest "Help will come to you soon!"
+  _ -> httpLBS $ stringRequest "zzz"
  where
   Just message' = message <$> last <$> result <$> obj
 
 one :: KeyboardButton
 one =
   KeyboardButton
-    { number = "1"
+    { text = "1"
     }
 
 two :: KeyboardButton
 two =
   KeyboardButton
-    { number = "2"
+    { text = "2"
     }
 
 three :: KeyboardButton
 three =
   KeyboardButton
-    { number = "3"
+    { text = "3"
     }
 
 four :: KeyboardButton
 four =
   KeyboardButton
-    { number = "4"
+    { text = "4"
     }
 
 five :: KeyboardButton
 five =
   KeyboardButton
-    { number = "5"
+    { text = "5"
     }
 
 buttons :: KeyboardButtons
@@ -200,8 +205,8 @@ stringToUrl str = Prelude.foldl fun "" str
 
 sendKeyboard :: Maybe WholeObject -> IO (Response LC.ByteString)
 sendKeyboard obj =
-  httpLBS $
-    stringRequest $
+  httpLBS $  
+    stringRequest $    
       mconcat
         [ "/sendMessage?chat_id="
         , show $ Main.id $ chat message'
@@ -212,24 +217,32 @@ sendKeyboard obj =
         ]
  where
   Just message' = message <$> last <$> result <$> obj
+  
+type Username   = T.Text
+type NumRepeats = Int
+  
+environment :: (UpdateID, Map.Map Username NumRepeats) 
+environment = (0, Map.singleton "" 3) 
 
-endlessCycle :: Int -> IO ()
-endlessCycle updateID = do
-  x <- httpLBS $ stringRequest $ getUpdates updateID
+endlessCycle :: (UpdateID, Map.Map Username NumRepeats) -> IO ()
+endlessCycle env = do
+  x <- httpLBS $ stringRequest $ getUpdates $ fst env
   case getResponseStatusCode x == 200 of
     False -> print "Error! Broken request!"
     _ -> do
       let obj = objectFromJSON $ getResponseBody x
       case result <$> obj of
-        Just [] -> endlessCycle updateID
+        Just [] -> endlessCycle env
         _ -> do
-          let newUpdateID = 1 + getUpdateID obj
+          let newEnv = (1 + getUpdateID obj, snd env)
           ifKeyWord obj
           print $ last <$> result <$> obj
-          sandRepeats 3 $ stringRepeat obj
-          -- sendKeyboard obj
-          endlessCycle newUpdateID
+          sandRepeats obj newEnv
+         -- sendKeyboard obj
+          endlessCycle newEnv
+          
 
 main :: IO ()
 main = do
-  endlessCycle 0
+  endlessCycle environment
+
