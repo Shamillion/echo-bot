@@ -105,14 +105,18 @@ getDataFromFile fileName num =
 stringRequest :: String -> Request
 stringRequest str =
   parseRequest_ $
-    mconcat ["https://", messengerHost, myToken, str]
+    mconcat ["https://", messengerHost, myToken, str] 
+    
+message' :: Maybe WholeObject -> Message    
+message' obj = case (message <$> last <$> result <$> obj) of
+                Just v  -> v
+                Nothing -> Message 0 (Chat 0 "0") Nothing  
 
-sandRepeats :: Maybe WholeObject -> 
-               (UpdateID, Map.Map Username NumRepeats) -> IO ()
+sandRepeats :: Maybe WholeObject -> Environment -> IO ()
 sandRepeats obj env = 
   replicateM_ num $ httpLBS $ stringRequest $ runIdentity $ do
-      let messageId = show $ message_id message'
-      let chatId = show $ Main.id $ chat message'      
+      let messageId = show $ message_id $ message' obj
+      let chatId = show $ Main.id $ chat $ message' obj      
       pure $
         mconcat
           [ "/copyMessage?chat_id="
@@ -122,25 +126,19 @@ sandRepeats obj env =
           , "&message_id="
           , messageId
           ]
-     where
-      Just message' = message <$> last <$> result <$> obj
-      usrName = username $ chat message'
-      num = case (Map.lookup usrName $ snd env) of
-              Nothing -> 3
-              Just n  -> n
+     where      
+       num = getRepeats obj env
 
 getUpdateID :: Maybe WholeObject -> UpdateID
 getUpdateID obj = val
  where
   Just val = update_id <$> last <$> result <$> obj
 
-ifKeyWord :: Maybe WholeObject -> IO (Response LC.ByteString)
-ifKeyWord obj = case textM message' of
-  Just "/repeat" -> sendKeyboard obj
+ifKeyWord :: Maybe WholeObject -> Environment -> IO (Response LC.ByteString)
+ifKeyWord obj env = case (textM $ message' obj) of
+  Just "/repeat" -> sendKeyboard obj env
   Just "/help" -> httpLBS $ stringRequest "Help will come to you soon!"
   _ -> httpLBS $ stringRequest "zzz"
- where
-  Just message' = message <$> last <$> result <$> obj
 
 one :: KeyboardButton
 one =
@@ -183,8 +181,13 @@ numRepeat =
     , one_time_keyboard = True
     }
 
-question :: String
-question = "Currently set to 4 repetitions.\nHow many reps do you want to set?"
+question :: Maybe WholeObject ->  Environment -> String
+question obj env = 
+  mconcat 
+    [ "Currently set to "
+    , show $ getRepeats obj env
+    , " repetitions.\nHow many reps do you want to set?"
+    ]
 
 stringToUrl :: String -> String
 stringToUrl str = Prelude.foldl fun "" str
@@ -203,30 +206,40 @@ stringToUrl str = Prelude.foldl fun "" str
       ':' -> "%3A"
       _ -> [c]
 
-sendKeyboard :: Maybe WholeObject -> IO (Response LC.ByteString)
-sendKeyboard obj =
+sendKeyboard :: Maybe WholeObject -> Environment -> IO (Response LC.ByteString)
+sendKeyboard obj env =
   httpLBS $  
     stringRequest $    
       mconcat
         [ "/sendMessage?chat_id="
-        , show $ Main.id $ chat message'
+        , show $ Main.id $ chat $ message' obj
         , "&text="
-        , stringToUrl question
+        , stringToUrl $ question obj env
         , "&reply_markup="
         , stringToUrl $ LC.unpack $ encode numRepeat
         ]
- where
-  Just message' = message <$> last <$> result <$> obj
   
 type Username   = T.Text
 type NumRepeats = Int
   
-environment :: (UpdateID, Map.Map Username NumRepeats) 
-environment = (0, Map.singleton "" 3) 
+data Environment = Environment 
+  { lastUpdate :: UpdateID
+  , userData   :: Map.Map Username NumRepeats
+  }
 
-endlessCycle :: (UpdateID, Map.Map Username NumRepeats) -> IO ()
+getRepeats :: Maybe WholeObject ->  Environment -> Int
+getRepeats obj env = case (Map.lookup usrName $ userData env) of
+            Nothing -> 3
+            Just n  -> n
+  where      
+    usrName = username $ chat $ message' obj     
+
+environment :: Environment  
+environment =  Environment 0 $ Map.singleton "" 3 
+
+endlessCycle :: Environment -> IO ()
 endlessCycle env = do
-  x <- httpLBS $ stringRequest $ getUpdates $ fst env
+  x <- httpLBS $ stringRequest $ getUpdates $ lastUpdate env
   case getResponseStatusCode x == 200 of
     False -> print "Error! Broken request!"
     _ -> do
@@ -234,11 +247,10 @@ endlessCycle env = do
       case result <$> obj of
         Just [] -> endlessCycle env
         _ -> do
-          let newEnv = (1 + getUpdateID obj, snd env)
-          ifKeyWord obj
+          let newEnv = Environment (1 + getUpdateID obj) (userData env)
+          ifKeyWord obj newEnv
           print $ last <$> result <$> obj
-          sandRepeats obj newEnv
-         -- sendKeyboard obj
+          sandRepeats obj newEnv         
           endlessCycle newEnv
           
 
