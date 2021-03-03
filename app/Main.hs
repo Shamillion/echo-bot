@@ -134,11 +134,39 @@ getUpdateID obj = val
  where
   Just val = update_id <$> last <$> result <$> obj
 
-ifKeyWord :: Maybe WholeObject -> Environment -> IO (Response LC.ByteString)
+ifKeyWord :: Maybe WholeObject -> Environment -> IO ()
 ifKeyWord obj env = case (textM $ message' obj) of
-  Just "/repeat" -> sendKeyboard obj env
-  Just "/help" -> httpLBS $ stringRequest "Help will come to you soon!"
-  _ -> httpLBS $ stringRequest "zzz"
+  Just "/repeat" -> do
+    sendKeyboard obj env
+    case (elem val ["1","2","3","4","5"]) of
+      True -> 
+        endlessCycle $ Environment (1 + getUpdateID newObj) 
+                                    (Map.insert usrName (read $ T.unpack val) 
+                                                               (userData env))
+      _ -> continuation
+  Just "/help" -> do
+    httpLBS $  
+      stringRequest $    
+        mconcat
+          [ "/sendMessage?chat_id="
+          , show $ Main.id $ chat $ message' obj
+          , "&text="
+          , stringToUrl $ "Help will come to you soon!"
+          ]
+    print "The help sent"
+    endlessCycle env
+  _ -> do
+         sandRepeats obj env
+         endlessCycle env  
+  where
+    newObj = getData env
+    newEnv = Environment (1 + getUpdateID newObj) (userData env)
+    Just val = textM $ message' newObj
+    usrName = username $ chat $ message' newObj
+    continuation = do
+                     sandRepeats newObj newEnv
+                     endlessCycle newEnv 
+                     
 
 one :: KeyboardButton
 one =
@@ -237,20 +265,27 @@ getRepeats obj env = case (Map.lookup usrName $ userData env) of
 environment :: Environment  
 environment =  Environment 0 $ Map.singleton "" 3 
 
+getData :: Environment -> Maybe WholeObject
+getData env = do
+  let x = unsafePerformIO $ httpLBS $ stringRequest $ getUpdates $ lastUpdate env
+  case getResponseStatusCode x == 200 of
+    False -> Nothing
+    _ -> do
+      let obj = objectFromJSON $ (getResponseBody x)
+      case result <$> obj of
+        Just [] -> getData env
+        _ -> obj         
+
 endlessCycle :: Environment -> IO ()
 endlessCycle env = do
-  x <- httpLBS $ stringRequest $ getUpdates $ lastUpdate env
-  case getResponseStatusCode x == 200 of
-    False -> print "Error! Broken request!"
+  let obj = getData env          
+  case obj of
+    Nothing -> print "Error! Broken request!"
     _ -> do
-      let obj = objectFromJSON $ getResponseBody x
-      case result <$> obj of
-        Just [] -> endlessCycle env
-        _ -> do
           let newEnv = Environment (1 + getUpdateID obj) (userData env)
           ifKeyWord obj newEnv
           print $ last <$> result <$> obj
-          sandRepeats obj newEnv         
+          sandRepeats obj newEnv                           
           endlessCycle newEnv
           
 
