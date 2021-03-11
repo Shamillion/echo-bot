@@ -131,13 +131,41 @@ sandRepeats obj env =
 ifKeyWord :: MessageDate -> StateT Environment IO ()
 ifKeyWord obj = do
   env <- get
-  let Just newObj = Prelude.head . result <$> getData env
+  let Just arr = result <$> getData env
+      newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
       usrName = username $ chat $ message' newObj
   case (textM $ message' obj) of
     Just "/repeat" -> do    
       lift $ sendKeyboard obj env
+      wordIsRepeat obj arr 
+        
+    Just "/help" -> do
+      lift $ sendComment obj $ "Help will come to you soon!"
+      lift $ print "Log: The help sent"
+      pure ()
+      
+    _ -> do
+      lift $ sandRepeats obj env
+      pure () 
+  
+  
+wordIsRepeat :: MessageDate -> [MessageDate] -> StateT Environment IO () 
+wordIsRepeat obj [] = do
+  env <- get
+  let Just newArr = result <$> getData env
+  wordIsRepeat obj newArr
+  
+wordIsRepeat obj (x:xs) = do
+  env <- get
+  let newObj = x
+      newEnv = Environment (1 + update_id newObj) (userData env)
+      Just val = textM $ message' newObj
+      usrName = username $ chat $ message' obj
+      newUsrName = username $ chat $ message' newObj 
+  case (usrName == newUsrName) of
+    True -> 
       case (elem val ["1","2","3","4","5"]) of      
         True -> do        
           lift $ sendComment obj $  "Done! Set up " 
@@ -150,17 +178,13 @@ ifKeyWord obj = do
                              (Map.insert usrName (read $ T.unpack val) 
                                                         (userData env))                                                                 
         _ -> do                     
-               lift $ sandRepeats newObj newEnv
-               put newEnv 
-        
-    Just "/help" -> do
-      lift $ sendComment obj $ "Help will come to you soon!"
-      lift $ print "Log: The help sent"
-      pure ()
-      
+          lift $ sandRepeats newObj newEnv
+          put newEnv 
+                     
     _ -> do
-           lift $ sandRepeats obj env
-           pure () 
+      ifKeyWord newObj
+      put newEnv 
+      wordIsRepeat obj xs
                      
 
 one :: KeyboardButton
