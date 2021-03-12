@@ -218,7 +218,7 @@ five =
     }
 
 buttons :: KeyboardButtons
-buttons = KeyboardButtons [one, two, three, four, five]
+buttons =  KeyboardButtons [one, two, three, four, five]
 
 numRepeat :: ReplyKeyboardMarkup
 numRepeat =
@@ -281,8 +281,8 @@ type Username   = T.Text
 type NumRepeats = Int
   
 data Environment = Environment 
-  { lastUpdate :: UpdateID
-  , userData   :: Map.Map Username NumRepeats
+  { lastUpdate  :: UpdateID
+  , userData    :: Map.Map Username NumRepeats
   }
 
 getRepeats :: MessageDate ->  Environment -> Int
@@ -306,8 +306,18 @@ getData env = do
         Just [] -> getData env
         _ -> obj         
 
+firstUpdateIDSession :: StateT Environment IO ()
+firstUpdateIDSession =  do
+  env <- get
+  let obj = getData env          
+  case obj of
+    Nothing -> pure ()              
+    _ -> do
+          let Just arr = result <$> obj
+          put $ Environment (1 + (update_id $ last arr)) (userData env)       
+
 endlessCycle :: StateT Environment IO ()
-endlessCycle = do
+endlessCycle =  do
   env <- get
   let obj = getData env          
   case obj of
@@ -317,14 +327,14 @@ endlessCycle = do
           put $ Environment (1 + (update_id $ last arr)) (userData env)          
           newEnv <- get
           mapM_ ifKeyWord arr  
-          lift $ print $ arr
-       --   sandRepeats obj newEnv                           
+          lift $ print $ arr                              
           endlessCycle 
           pure () 
           
 
 main :: IO ()
 main = do
-  runStateT endlessCycle environment
-  print ()
+  newEnv <- execStateT firstUpdateIDSession environment
+  evalStateT endlessCycle newEnv
+ 
 
