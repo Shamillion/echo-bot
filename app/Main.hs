@@ -131,7 +131,7 @@ sandRepeats obj env =
 ifKeyWord :: MessageDate -> StateT Environment IO ()
 ifKeyWord obj = do
   env <- get
-  let Just arr = result <$> getData env
+  let Just arr = result <$> evalState getData env
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -154,7 +154,7 @@ ifKeyWord obj = do
 wordIsRepeat :: MessageDate -> [MessageDate] -> StateT Environment IO () 
 wordIsRepeat obj [] = do
   env <- get
-  let Just newArr = result <$> getData env
+  let Just newArr = result <$> evalState getData env
   wordIsRepeat obj newArr
   
 wordIsRepeat obj (x:xs) = do
@@ -295,38 +295,43 @@ getRepeats obj env = case (Map.lookup usrName $ userData env) of
 environment :: Environment  
 environment =  Environment 0 $ Map.singleton "" 3 
 
-getData :: Environment -> Maybe WholeObject
-getData env = do
+getData :: State Environment (Maybe WholeObject)
+getData =  do
+  env <- get
   let x = unsafePerformIO $ httpLBS $ stringRequest $ getUpdates $ lastUpdate env
   case getResponseStatusCode x == 200 of
-    False -> Nothing
+    False -> pure Nothing
     _ -> do
       let obj = objectFromJSON $ (getResponseBody x)
       case result <$> obj of
-        Just [] -> getData env
-        _ -> obj         
+        Just [] -> do
+          put $ Environment 1 (userData env)
+          getData 
+        _ -> pure obj                
 
 firstUpdateIDSession :: StateT Environment IO ()
 firstUpdateIDSession =  do
   env <- get
-  let obj = getData env          
+  let (obj, newEnv) = runState getData env                
   case obj of
     Nothing -> pure ()              
     _ -> do
-          let Just arr = result <$> obj
-          put $ Environment (1 + (update_id $ last arr)) (userData env)       
+      let Just arr = result <$> obj 
+      if lastUpdate newEnv == 1
+      then put $ Environment (update_id $ last arr) (userData newEnv) 
+      else put $ Environment (1 + (update_id $ last arr)) (userData newEnv)           
 
 endlessCycle :: StateT Environment IO ()
 endlessCycle =  do
   env <- get
-  let obj = getData env          
+  let obj = evalState getData env          
   case obj of
     Nothing -> lift $ print "Error! Broken request!"               
     _ -> do
           let Just arr = result <$> obj
           put $ Environment (1 + (update_id $ last arr)) (userData env)          
           newEnv <- get
-          mapM_ ifKeyWord arr  
+          mapM_ ifKeyWord arr   
           lift $ print $ arr                              
           endlessCycle 
           pure () 
