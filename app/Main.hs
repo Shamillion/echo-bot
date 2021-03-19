@@ -3,7 +3,9 @@
 
 module Main where
 
-import qualified Data.Map.Lazy as Map
+
+import Control.Concurrent (threadDelay)
+import Control.Exception (try)
 import Control.Monad
 import Control.Monad.Identity (Identity (runIdentity))
 import Control.Monad.State.Lazy
@@ -12,7 +14,9 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
-import Data.Text as T hiding (last)
+import qualified Data.Map.Lazy as Map
+import qualified Data.Text as T hiding (last)
+import Data.Time
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import System.IO
@@ -75,9 +79,6 @@ instance ToJSON KeyboardButtons
 
 instance ToJSON ReplyKeyboardMarkup
 
-objectFromJSON :: LC.ByteString -> Maybe WholeObject
-objectFromJSON = decode
-
 myToken :: String
 myToken = getDataFromFile "../config.cfg" 1
 
@@ -87,7 +88,7 @@ messengerHost = "api.telegram.org/bot"
 type UpdateID = Int
 
 getUpdates :: Int -> String
-getUpdates num = mconcat ["/getUpdates?offset=", show num]
+getUpdates num = mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 lastUpdateID :: UpdateID
 lastUpdateID = read $ getDataFromFile "../config.cfg" 2 :: Int
@@ -295,14 +296,32 @@ getRepeats obj env = case (Map.lookup usrName $ userData env) of
 environment :: Environment  
 environment =  Environment 0 $ Map.singleton "" 3 
 
+connection :: Environment -> Int -> IO (Response LC.ByteString)
+connection env num = do
+  x <- try $ httpLBS $ stringRequest $ getUpdates $ lastUpdate env     
+  case x of
+    Left e -> do
+      let z = (e :: HttpException)
+      when (num == 0) $ do
+        getCurrentTime >>= print 
+        print "Connection Failure"
+        print "Trying to set a connection... "          
+      threadDelay 1000000
+      connection env (num + 1)
+    Right v -> do 
+      when (num /= 0) $ do         
+        getCurrentTime >>= print
+        print "Connection restored"
+      pure v
+
 getData :: State Environment (Maybe WholeObject)
 getData =  do
   env <- get
-  let x = unsafePerformIO $ httpLBS $ stringRequest $ getUpdates $ lastUpdate env
+  let x = unsafePerformIO $ connection env 0
   case getResponseStatusCode x == 200 of
     False -> pure Nothing
     _ -> do
-      let obj = objectFromJSON $ (getResponseBody x)
+      let obj = decode $ getResponseBody x
       case result <$> obj of
         Just [] -> do
           put $ Environment 1 (userData env)
@@ -316,6 +335,8 @@ firstUpdateIDSession =  do
   case obj of
     Nothing -> pure ()              
     _ -> do
+      lift $ getCurrentTime >>= print
+      lift $ print "Connection established"
       let Just arr = result <$> obj 
       if lastUpdate newEnv == 1
       then put $ Environment (update_id $ last arr) (userData newEnv) 
@@ -328,18 +349,18 @@ endlessCycle =  do
   case obj of
     Nothing -> lift $ print "Error! Broken request!"               
     _ -> do
-          let Just arr = result <$> obj
-          put $ Environment (1 + (update_id $ last arr)) (userData env)          
-          newEnv <- get
-          mapM_ ifKeyWord arr   
-          lift $ print $ arr                              
-          endlessCycle 
-          pure () 
+      let Just arr = result <$> obj
+      put $ Environment (1 + (update_id $ last arr)) (userData env)          
+      newEnv <- get
+      mapM_ ifKeyWord arr   
+      lift $ print $ arr                              
+      endlessCycle 
+      pure () 
           
 
 main :: IO ()
 main = do
   newEnv <- execStateT firstUpdateIDSession environment
   evalStateT endlessCycle newEnv
- 
+       
 

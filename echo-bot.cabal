@@ -48,6 +48,7 @@ executable echo-bot-exe
     , echo-bot
     , bytestring
     , text
+    , time
     , http-conduit
     , aeson
     , mtl
