@@ -22,6 +22,16 @@ import Network.HTTP.Simple
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 
+data Configuration = Configuration
+  { hostTG :: T.Text
+  , hostVK :: T.Text
+  , tokenTG :: T.Text
+  , tokenVK :: T.Text
+  , helpMess :: T.Text
+  , repeatMess :: T.Text
+  , defaultRepaets :: Int
+  } deriving (Show, Generic)
+
 data Chat = Chat 
   { id :: Int
   , username :: T.Text  
@@ -79,30 +89,31 @@ instance ToJSON KeyboardButtons
 
 instance ToJSON ReplyKeyboardMarkup
 
-myToken :: String
-myToken = getDataFromFile "../config.cfg" 1
+myHost :: String
+myHost =  getDataFromFile "../config.cfg" "hostTG"
 
+myToken :: String
+myToken =  getDataFromFile "../config.cfg" "tokenTG"
+ 
 messengerHost :: String
-messengerHost = "api.telegram.org/bot"
+messengerHost = myHost ++ "/bot"
 
 type UpdateID = Int
 
 getUpdates :: Int -> String
 getUpdates num = mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
-
-lastUpdateID :: UpdateID
-lastUpdateID = read $ getDataFromFile "../config.cfg" 2 :: Int
-
-getDataFromFile :: String -> Int -> String
-getDataFromFile fileName num =
+  
+getDataFromFile :: String -> String -> String
+getDataFromFile fileName str =
   unsafePerformIO $ do
-    file <- openFile fileName ReadMode
-    firstLine <- hGetLine file
-    secondLine <- hGetLine file
-    hClose file
-    case num of
-      1 -> pure firstLine
-      _ -> pure secondLine
+    file     <- openFile fileName ReadMode
+    content  <- hGetContents file 
+    content `seq` hClose file
+    let arr = map (Prelude.words) (lines content)
+    pure $ fun arr
+  where
+    fun []     = "ERROR" 
+    fun (x:xs) = if head x == str then last x else fun xs       
 
 stringRequest :: String -> Request
 stringRequest str =
@@ -362,5 +373,7 @@ main :: IO ()
 main = do
   newEnv <- execStateT firstUpdateIDSession environment
   evalStateT endlessCycle newEnv
+
+  
        
 
