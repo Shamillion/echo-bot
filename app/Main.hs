@@ -70,6 +70,8 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   , one_time_keyboard :: Bool
   }
   deriving (Show, Generic)
+  
+data Priority = DEBUG | INFO | WARNING | ERROR  deriving (Show, Eq, Ord)
 
 instance FromJSON Configuration
 
@@ -92,6 +94,18 @@ instance ToJSON KeyboardButtons
 
 instance ToJSON ReplyKeyboardMarkup
 
+time :: IO String
+time = (take 19) <$> show <$> getCurrentTime
+
+file :: Handle
+file  = unsafePerformIO $ openFile "../log.log" AppendMode
+
+writingLine :: Priority -> String -> IO () 
+writingLine lvl str = do
+  t <- time
+  hPutStrLn file $ t ++ " UTC   " ++ show lvl ++ " - " ++ str 
+  hFlush file 
+
 getConfiguration :: String -> Either String Configuration
 getConfiguration fileName = 
   unsafePerformIO $ do
@@ -99,7 +113,7 @@ getConfiguration fileName =
     let obj = eitherDecode content
     case obj of
       Right _ -> pure obj
-      Left e  -> print ("Log: " ++ e) >> pure obj
+      Left e  -> writingLine ERROR e >> pure obj
  
 errorConfig :: Configuration
 errorConfig = Configuration
@@ -174,13 +188,14 @@ ifKeyWord obj = do
       Just val = textM $ message' newObj
       usrName = username $ chat $ message' newObj
   case (textM $ message' obj) of
-    Just "/repeat" -> do    
+    Just "/repeat" -> do         
       lift $ sendKeyboard obj env
-      wordIsRepeat obj arr 
+      lift $ writingLine INFO $ "Received /repeat from " ++ T.unpack usrName 
+      wordIsRepeat obj arr       
         
     Just "/help" -> do
       lift $ sendComment obj $ T.unpack $ mconcat $ helpMess configuration
-      lift $ print "Log: The help sent"
+      lift $ writingLine INFO $ "Received /help from " ++ T.unpack usrName 
       pure ()
       
     _ -> do
@@ -208,9 +223,10 @@ wordIsRepeat obj (x:xs) = do
           lift $ sendComment obj $  "Done! Set up " 
                                  ++ T.unpack val 
                                  ++ " repeat(s)."
-          lift $ print $  "Log: Set up " 
+          lift $ writingLine INFO $ "Set up " 
                        ++ T.unpack val 
-                       ++ " repeat(s)."
+                       ++ " repeat(s) to "
+                       ++ T.unpack usrName
           put  $ Environment (1 + update_id newObj) 
                              (Map.insert usrName (read $ T.unpack val) 
                                                         (userData env))                                                                 
@@ -319,8 +335,8 @@ type Username   = T.Text
 type NumRepeats = Int
   
 data Environment = Environment 
-  { lastUpdate  :: UpdateID
-  , userData    :: Map.Map Username NumRepeats
+  { lastUpdate :: UpdateID
+  , userData   :: Map.Map Username NumRepeats
   }
 
 getRepeats :: MessageDate ->  Environment -> Int
@@ -381,10 +397,10 @@ firstUpdateIDSession =  do
 
 endlessCycle :: StateT Environment IO ()
 endlessCycle =  do
-  env <- get
+  env <- get  
   let obj = evalState getData env          
   case obj of
-    Nothing -> lift $ print "Error! Broken request!"               
+    Nothing -> lift $ writingLine ERROR "Broken request!"               
     _ -> do
       let Just arr = result <$> obj
       put $ Environment (1 + (update_id $ last arr)) (userData env)          
@@ -397,5 +413,6 @@ endlessCycle =  do
 
 main :: IO ()
 main = do
-  newEnv <- execStateT firstUpdateIDSession environment
+  handle <- openFile "../log.log" AppendMode
+  newEnv <- execStateT firstUpdateIDSession environment  
   evalStateT endlessCycle newEnv
