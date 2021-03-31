@@ -30,7 +30,8 @@ data Configuration = Configuration
   , tokenVK :: T.Text
   , helpMess :: [T.Text]
   , repeatMess :: T.Text
-  , defaultRepaets :: Int   
+  , defaultRepaets :: Int 
+  , priorityLevel :: Priority  
   } deriving (Show, Generic)
 
 data Chat = Chat 
@@ -71,11 +72,12 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   }
   deriving (Show, Generic)
   
-data Priority = DEBUG | INFO | WARNING | ERROR  deriving (Show, Eq, Ord)
+data Priority = DEBUG | INFO | WARNING | ERROR  
+  deriving (Show, Eq, Ord, Generic)
 
 instance FromJSON Configuration
 
-instance FromJSON Chat
+instance FromJSON Chat 
 
 instance FromJSON Message where
   parseJSON (Object v) = do
@@ -94,6 +96,8 @@ instance ToJSON KeyboardButtons
 
 instance ToJSON ReplyKeyboardMarkup
 
+instance FromJSON Priority
+
 time :: IO String
 time = (take 19) <$> show <$> getCurrentTime
 
@@ -102,9 +106,15 @@ file  = unsafePerformIO $ openFile "../log.log" AppendMode
 
 writingLine :: Priority -> String -> IO () 
 writingLine lvl str = do
-  t <- time
-  hPutStrLn file $ t ++ " UTC   " ++ show lvl ++ " - " ++ str 
-  hFlush file 
+    t <- time
+    hPutStrLn file $ t ++ " UTC   " ++ fun lvl ++ " - " ++ str 
+    hFlush file 
+  where 
+    fun val = case val of
+      DEBUG   -> "DEBUG  "
+      INFO    -> "INFO   "
+      WARNING -> "WARNING"
+      ERROR   -> "ERROR  "
 
 getConfiguration :: String -> Either String Configuration
 getConfiguration fileName = 
@@ -124,7 +134,8 @@ errorConfig = Configuration
   , tokenVK = "Error"
   , helpMess = ["Error"]
   , repeatMess = "Error"
-  , defaultRepaets = 0 
+  , defaultRepaets = 0
+  , priorityLevel = ERROR 
   } 
 
 configuration :: Configuration
@@ -413,6 +424,5 @@ endlessCycle =  do
 
 main :: IO ()
 main = do
-  handle <- openFile "../log.log" AppendMode
   newEnv <- execStateT firstUpdateIDSession environment  
   evalStateT endlessCycle newEnv
