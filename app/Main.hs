@@ -105,16 +105,18 @@ file :: Handle
 file  = unsafePerformIO $ openFile "../log.log" AppendMode
 
 writingLine :: Priority -> String -> IO () 
-writingLine lvl str = do
-    t <- time
-    hPutStrLn file $ t ++ " UTC   " ++ fun lvl ++ " - " ++ str 
-    hFlush file 
+writingLine lvl str = if (lvl >= logLevel)
+    then do
+      t <- time
+      hPutStrLn file $ t ++ " UTC   " ++ fun lvl ++ " - " ++ str 
+      hFlush file 
+    else pure ()  
   where 
     fun val = case val of
       DEBUG   -> "DEBUG  "
       INFO    -> "INFO   "
       WARNING -> "WARNING"
-      ERROR   -> "ERROR  "
+      ERROR   -> "ERROR  "       
 
 getConfiguration :: String -> Either String Configuration
 getConfiguration fileName = 
@@ -126,7 +128,7 @@ getConfiguration fileName =
       Left e  -> writingLine ERROR e >> pure obj
  
 errorConfig :: Configuration
-errorConfig = Configuration
+errorConfig =  Configuration
   { messenger = "Error"
   , hostTG = "Error"
   , hostVK = "Error"
@@ -160,6 +162,9 @@ myToken =  if currentMessenger == "TG"
 messengerHost :: String
 messengerHost = myHost ++ "/bot"
 
+logLevel :: Priority
+logLevel =  priorityLevel configuration
+
 type UpdateID = Int
 
 getUpdates :: Int -> String
@@ -174,21 +179,25 @@ message' :: MessageDate -> Message
 message' obj = message $ obj
 
 sandRepeats :: MessageDate -> Environment -> IO ()
-sandRepeats obj env = 
-  replicateM_ num $ httpLBS $ stringRequest $ runIdentity $ do
-      let messageId = show $ message_id $ message' obj
-      let chatId = show $ Main.id $ chat $ message' obj      
-      pure $
-        mconcat
-          [ "/copyMessage?chat_id="
-          , chatId
-          , "&from_chat_id="
-          , chatId
-          , "&message_id="
-          , messageId
-          ]
-     where      
-       num = getRepeats obj env
+sandRepeats obj env =     
+    replicateM_ num $ do
+      writingLine DEBUG $ show string
+      httpLBS $ string 
+  where
+    num = getRepeats obj env
+    messageId = show $ message_id $ message' obj
+    chatId = show $ Main.id $ chat $ message' obj
+    string = stringRequest $
+      mconcat
+        [ "/copyMessage?chat_id="
+        , chatId
+        , "&from_chat_id="
+        , chatId
+        , "&message_id="
+        , messageId
+        ]
+    
+      
 
 ifKeyWord :: MessageDate -> StateT Environment IO ()
 ifKeyWord obj = do
@@ -197,16 +206,16 @@ ifKeyWord obj = do
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
-      usrName = username $ chat $ message' newObj
+      usrName = T.unpack $ username $ chat $ message' obj
   case (textM $ message' obj) of
     Just "/repeat" -> do         
-      lift $ sendKeyboard obj env
-      lift $ writingLine INFO $ "Received /repeat from " ++ T.unpack usrName 
+      lift $ writingLine INFO $ "Received /repeat from " ++ usrName
+      lift $ sendKeyboard obj env       
       wordIsRepeat obj arr       
         
     Just "/help" -> do
-      lift $ sendComment obj $ T.unpack $ mconcat $ helpMess configuration
-      lift $ writingLine INFO $ "Received /help from " ++ T.unpack usrName 
+      lift $ writingLine INFO $ "Received /help from " ++ usrName 
+      lift $ sendComment obj $ T.unpack $ mconcat $ helpMess configuration      
       pure ()
       
     _ -> do
@@ -319,9 +328,11 @@ stringToUrl str = Prelude.foldl fun "" str
       _ -> [c]
 
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
-sendKeyboard obj env =
-  httpLBS $  
-    stringRequest $    
+sendKeyboard obj env = do
+    writingLine DEBUG $ show string
+    httpLBS string 
+  where 
+    string = stringRequest $    
       mconcat
         [ "/sendMessage?chat_id="
         , show $ Main.id $ chat $ message' obj
@@ -332,9 +343,11 @@ sendKeyboard obj env =
         ]
         
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
-sendComment obj str =
-  httpLBS $  
-    stringRequest $    
+sendComment obj str = do
+    writingLine DEBUG $ show string
+    httpLBS string  
+  where 
+    string = stringRequest $    
       mconcat
         [ "/sendMessage?chat_id="
         , show $ Main.id $ chat $ message' obj
@@ -424,5 +437,8 @@ endlessCycle =  do
 
 main :: IO ()
 main = do
-  newEnv <- execStateT firstUpdateIDSession environment  
-  evalStateT endlessCycle newEnv
+  case messenger configuration of
+    "Error" -> print "Check out config.json"
+    _       -> do
+      newEnv <- execStateT firstUpdateIDSession environment  
+      evalStateT endlessCycle newEnv
