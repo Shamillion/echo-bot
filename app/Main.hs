@@ -195,10 +195,8 @@ sandRepeats obj env =
         , chatId
         , "&message_id="
         , messageId
-        ]
-    
+        ]   
       
-
 ifKeyWord :: MessageDate -> StateT Environment IO ()
 ifKeyWord obj = do
   env <- get
@@ -375,28 +373,36 @@ environment =  Environment 0 $ Map.singleton "" (defaultRepaets configuration)
 
 connection :: Environment -> Int -> IO (Response LC.ByteString)
 connection env num = do
-  x <- try $ httpLBS $ stringRequest $ getUpdates $ lastUpdate env     
-  case x of
-    Left e -> do
-      let z = (e :: HttpException)
-      when (num == 0) $ do
-        getCurrentTime >>= print 
-        print "Connection Failure"
-        print "Trying to set a connection... "          
-      threadDelay 1000000
-      connection env (num + 1)
-    Right v -> do 
-      when (num /= 0) $ do         
-        getCurrentTime >>= print
-        print "Connection restored"
-      pure v
+    x <- try $ httpLBS string
+    writingLine DEBUG $ show string   
+    case x of
+      Left e -> do
+        writingLine ERROR $ show (e :: HttpException)      
+        when (num == 0) $ do
+          getCurrentTime >>= print 
+          print "Connection Failure"
+          print "Trying to set a connection... "          
+        threadDelay 1000000
+        connection env (num + 1)
+      Right v -> do 
+        writingLine DEBUG $ show v 
+        when (num /= 0) $ do         
+          getCurrentTime >>= print
+          print "Connection restored"
+        pure v
+  where 
+    string = stringRequest $ getUpdates $ lastUpdate env         
 
 getData :: State Environment (Maybe WholeObject)
 getData =  do
   env <- get
   let x = unsafePerformIO $ connection env 0
-  case getResponseStatusCode x == 200 of
-    False -> pure Nothing
+      code = getResponseStatusCode x 
+      writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
+  case code == 200 of
+    False -> pure $ unsafePerformIO $ do
+      writingLine ERROR $ "statusCode " ++ show code
+      pure Nothing
     _ -> do
       let obj = decode $ getResponseBody x
       case result <$> obj of
@@ -437,6 +443,7 @@ endlessCycle =  do
 
 main :: IO ()
 main = do
+  writingLine INFO "Started echobot."
   case messenger configuration of
     "Error" -> print "Check out config.json"
     _       -> do
