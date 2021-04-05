@@ -32,6 +32,7 @@ data Configuration = Configuration
   , repeatMess :: T.Text
   , defaultRepaets :: Int 
   , priorityLevel :: Priority  
+  , logOutput :: T.Text
   } deriving (Show, Generic)
 
 data Chat = Chat 
@@ -108,10 +109,15 @@ writingLine :: Priority -> String -> IO ()
 writingLine lvl str = if (lvl >= logLevel)
     then do
       t <- time
-      hPutStrLn file $ t ++ " UTC   " ++ fun lvl ++ " - " ++ str 
-      hFlush file 
+      let string = t ++ " UTC   " ++ fun lvl ++ " - " ++ str   
+      case out of
+        "file" -> do
+          hPutStrLn file string 
+          hFlush file 
+        _ -> print string   
     else pure ()  
-  where 
+  where
+    out = logOutput configuration 
     fun val = case val of
       DEBUG   -> "DEBUG  "
       INFO    -> "INFO   "
@@ -121,11 +127,17 @@ writingLine lvl str = if (lvl >= logLevel)
 getConfiguration :: String -> Either String Configuration
 getConfiguration fileName = 
   unsafePerformIO $ do
+    t <- time
     content <- L.readFile fileName 
     let obj = eitherDecode content
     case obj of
       Right _ -> pure obj
-      Left e  -> writingLine ERROR e >> pure obj
+      Left e  -> do
+        let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ e 
+        print str
+        hPutStrLn file str 
+        hFlush file       
+        pure obj
  
 errorConfig :: Configuration
 errorConfig =  Configuration
@@ -138,6 +150,7 @@ errorConfig =  Configuration
   , repeatMess = "Error"
   , defaultRepaets = 0
   , priorityLevel = ERROR 
+  , logOutput = "cons"   
   } 
 
 configuration :: Configuration
@@ -435,17 +448,15 @@ endlessCycle =  do
       let Just arr = result <$> obj
       put $ Environment (1 + (update_id $ last arr)) (userData env)          
       newEnv <- get
-      mapM_ ifKeyWord arr   
-      lift $ print $ arr                              
+      mapM_ ifKeyWord arr                                
       endlessCycle 
-      pure () 
-          
+                
 
 main :: IO ()
-main = do
-  writingLine INFO "Started echobot."
+main = do  
   case messenger configuration of
     "Error" -> print "Check out config.json"
     _       -> do
+      writingLine INFO "Started echobot."
       newEnv <- execStateT firstUpdateIDSession environment  
       evalStateT endlessCycle newEnv
