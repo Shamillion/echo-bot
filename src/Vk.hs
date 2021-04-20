@@ -53,6 +53,22 @@ getLongPollServer =
             , T.unpack $ apiVKVersion configuration
             ] 
 
+primaryData :: Either String VkResponse
+primaryData = unsafePerformIO $ do
+  x <- httpLBS getLongPollServer
+  writingLine DEBUG $ show getLongPollServer
+  let obj = eitherDecode $ getResponseBody x    
+  case obj of
+    Left _ -> do
+      writingLine ERROR $ "User authorization failed!"    
+      pure obj
+    Right v -> do 
+      writingLine DEBUG $ show v 
+      pure obj
+ 
+
+
+--botsLongPollAPI :: Request
 
 
 
