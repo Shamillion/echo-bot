@@ -21,9 +21,18 @@ main = do
       evalStateT endlessCycle newEnv
     _       -> do
       writingLine INFO "Started VK echobot."
-      print primaryData
+    --  botsLongPollAPI
     --  x <- httpLBS getLongPollServer
     --  print $ getResponseBody x 
+      x <- httpLBS $ parseRequest_ $   
+        mconcat [ "server"
+                , "?act=a_check&key="
+                , "key"
+                , "&ts="
+                , "33"
+                , "&wait=25" 
+                ] 
+      print $ (eitherDecode $ getResponseBody x :: Either String VkData)
       
       
   

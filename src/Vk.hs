@@ -34,11 +34,40 @@ data VkResponse = VkResponse
 
 instance FromJSON VkResponse   
 
---data VkData = VkData
-  --{ ts :: T.Text
-  --, updates :: Message
-  --}
-  --deriving (Show, Generic)
+data VkData = VkData
+  { offset :: T.Text
+  , updates :: [Updates]
+  }
+  deriving Show
+
+instance FromJSON VkData where
+  parseJSON (Object v) = do
+    offset <- v .: "ts"
+    updates  <- v .: "updates"    
+    pure $ VkData offset updates
+    
+data Updates = Updates
+  { type' :: T.Text
+  , object :: ObjectVK
+  } deriving Show
+  
+instance FromJSON Updates where
+  parseJSON (Object v) = do
+    type' <- v .: "type"
+    object  <- v .: "object"    
+    pure $ Updates type' object 
+
+data ObjectVK = ObjectVK
+  { message :: MessageVK } deriving (Show, Generic)
+  
+instance FromJSON ObjectVK       
+
+data MessageVK = MessageVK
+  { from_id :: Int
+  , text :: T.Text
+  } deriving (Show, Generic)
+  
+instance FromJSON MessageVK    
 
 getLongPollServer :: Request
 getLongPollServer = 
@@ -67,9 +96,18 @@ primaryData = unsafePerformIO $ do
       pure obj
  
 
-
---botsLongPollAPI :: Request
-
+botsLongPollAPI :: IO ()
+botsLongPollAPI = do
+  let obj = primaryData
+  case obj of
+    Left _ -> pure ()      
+    Right v -> do
+      let key' = key $ response v
+          server' = server $ response v
+          ts' = ts $ response v
+      x <- httpLBS $ parseRequest_ $ T.unpack $  
+        mconcat [ server', "?act=a_check&key=", key', "&ts=", ts', "&wait=25" ] 
+      print $ getResponseBody x
 
 
 
