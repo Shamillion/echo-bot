@@ -64,6 +64,7 @@ instance FromJSON ObjectVK
 
 data MessageVK = MessageVK
   { from_id :: Int
+  , id :: Int
   , text :: T.Text
   } deriving (Show, Generic)
   
@@ -102,14 +103,32 @@ botsLongPollAPI = do
   case obj of
     Left _ -> pure ()      
     Right v -> do
-      let key' = key $ response v
-          server' = server $ response v
+      let server' = server $ response v
+          key' = key $ response v
           ts' = ts $ response v
-      x <- httpLBS $ parseRequest_ $ T.unpack $  
-        mconcat [ server', "?act=a_check&key=", key', "&ts=", ts', "&wait=25" ] 
-      print $ getResponseBody x
+      fun server' key' ts' 
+  where 
+    fun s k t =  
+      case getVkData s k t of
+        Nothing -> botsLongPollAPI
+        Just w  -> do
+          print w
+          fun s k $ offset w           
 
-
+getVkData :: T.Text -> T.Text -> T.Text -> Maybe VkData
+getVkData s k t = unsafePerformIO $ do
+  x <- httpLBS $ parseRequest_  string
+  writingLine DEBUG $ string      
+  let obj = eitherDecode $ getResponseBody x    
+  case obj of
+    Left _ -> do
+      writingLine ERROR $ "Error Bots Long Poll API"    
+      pure Nothing
+    Right v -> do 
+      writingLine DEBUG $ show v 
+      pure v 
+  where string = T.unpack $  
+                 mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]         
 
 
 
