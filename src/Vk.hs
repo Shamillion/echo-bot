@@ -11,6 +11,7 @@ import Control.Monad.State.Lazy
 import Data.Aeson
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
+import Data.IORef
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T hiding (last)
 import Data.Time
@@ -83,8 +84,9 @@ getLongPollServer =
             , T.unpack $ apiVKVersion configuration
             ] 
 
-messagesSend :: Updates -> Request
-messagesSend obj = 
+
+messageSend :: Int -> Updates -> Request
+messageSend randomId obj = 
   parseRequest_ $  
     mconcat ["https://"
             , myHost
@@ -102,10 +104,22 @@ messagesSend obj =
             , T.unpack $ apiVKVersion configuration
             ]
   where
-    userId = from_id $ Vk.message $ object' obj
-    randomId = Vk.id $ Vk.message $ object' obj
+    userId = from_id $ Vk.message $ object' obj    
     str = Vk.text $ Vk.message $ object' obj
-
+    
+repeatMessage :: (IORef Int) -> Int -> Updates -> IO ()
+repeatMessage ref num obj = do
+  randomId <- readIORef ref
+  if num == 1 
+    then do
+      modifyIORef ref (+1)
+      httpLBS $ messageSend randomId obj
+      pure ()
+    else do
+      modifyIORef ref (+num)
+      mapM_ (\x -> httpLBS $ messageSend x obj) [randomId .. (randomId + num - 1)] 
+      pure () 
+  
 primaryData :: Either String VkResponse
 primaryData = unsafePerformIO $ do
   x <- httpLBS getLongPollServer
@@ -119,31 +133,6 @@ primaryData = unsafePerformIO $ do
       writingLine DEBUG $ show v 
       pure obj
  
-
-botsLongPollAPI :: IO ()
-botsLongPollAPI = do
-  let obj = primaryData
-  case obj of
-    Left _ -> pure ()      
-    Right v -> do
-      let server' = server $ response v
-          key' = key $ response v
-          ts' = ts $ response v
-      fun server' key' ts' 
-  where 
-    fun s k t =  
-      case getVkData s k t of
-        Nothing -> botsLongPollAPI
-        Just w  -> do
-          let arr = updates w
-          case arr of 
-            [] -> do
-                    print "Cycle"
-                    botsLongPollAPI
-            _  -> do                            
-              mapM_ ((replicateM_ 2) . httpLBS . messagesSend) arr
-              fun s k $ offset w           
-
 getVkData :: T.Text -> T.Text -> T.Text -> Maybe VkData
 getVkData s k t = unsafePerformIO $ do
   x <- httpLBS $ parseRequest_  string
@@ -158,7 +147,38 @@ getVkData s k t = unsafePerformIO $ do
       writingLine DEBUG $ show v 
       pure v 
   where string = T.unpack $  
-                 mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]         
+                 mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]  
+
+botsLongPollAPI :: (IORef Int) -> IO ()
+botsLongPollAPI ref = do
+  let obj = primaryData
+  case obj of
+    Left _ -> pure ()      
+    Right v -> do
+      let server' = server $ response v
+          key' = key $ response v
+          ts' = ts $ response v
+      fun server' key' ts' 
+  where 
+    fun s k t =  
+      case getVkData s k t of
+        Nothing -> botsLongPollAPI ref
+        Just w  -> do
+          let arr = updates w
+          case arr of 
+            [] -> do
+                    print "Cycle"
+                    fun s k $ offset w
+            _  -> do                            
+              mapM_ (repeatMessage ref 2) arr
+              fun s k $ offset w           
+
+cycleVk :: IO ()
+cycleVk = do
+  randomId <- newIORef 300
+  botsLongPollAPI randomId
+     
+        
 
 
 

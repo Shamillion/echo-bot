@@ -20,7 +20,7 @@ main = do
       evalStateT endlessCycle newEnv
     _       -> do
       writingLine INFO "Started VK echobot."
-      botsLongPollAPI
+      cycleVk
       
       
   
