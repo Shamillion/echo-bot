@@ -28,6 +28,7 @@ dependencies:
 - aeson
 - mtl
 - containers
+- random
 
 library:
   source-dirs: src
