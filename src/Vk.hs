@@ -167,16 +167,34 @@ botsLongPollAPI = do
                     print "Cycle"
                     fun s k $ offset w
             _  -> do                            
-              mapM_ (repeatMessage 1) arr
+              mapM_ (repeatMessage 3) arr
               fun s k $ offset w           
 
-     
+wholeObjectVk :: VkData -> WholeObject
+wholeObjectVk obj = WholeObject
+  { ok = True
+  , result = map (messageDateVk num) (updates obj)
+  }
+  where num = read $ T.unpack $ offset obj 
         
+messageDateVk :: Int -> Updates -> MessageDate
+messageDateVk num obj = MessageDate
+  { update_id = num
+  , Lib.message = messageVk obj
+  }
 
+messageVk :: Updates -> Message
+messageVk obj = Message
+  { message_id = Vk.id $ Vk.message $ object' obj  
+  , chat = chatVk obj
+  , textM = Just $ Vk.text $ Vk.message $ object' obj  
+  }
 
-
-
-
+chatVk :: Updates -> Chat
+chatVk obj = Chat 
+  { Lib.id = groupIdVK configuration
+  , username = T.pack $ show $ from_id $ Vk.message $ object' obj  
+  }
 
 
 
