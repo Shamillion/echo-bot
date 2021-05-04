@@ -88,7 +88,7 @@ getLongPollServer =
 randomId :: IO Int
 randomId = randomRIO (1, 1000000)
 
-messageSend :: Int -> Updates -> Request
+messageSend :: Int -> MessageDate -> Request
 messageSend randomId' obj = 
   parseRequest_ $  
     mconcat ["https://"
@@ -107,10 +107,10 @@ messageSend randomId' obj =
             , T.unpack $ apiVKVersion configuration
             ]
   where
-    userId = from_id $ Vk.message $ object' obj  
-    messId = Vk.id $ Vk.message $ object' obj      
+    userId = username $ chat $ message' obj  
+    messId = show $ message_id $ message' obj     
     
-repeatMessage :: Int -> Updates -> IO ()
+repeatMessage :: Int -> MessageDate -> IO ()
 repeatMessage num obj = mapM_ (\x -> fun) [1..num] 
   where
     fun = do
@@ -146,8 +146,8 @@ getVkData s k t = unsafePerformIO $ do
   where string = T.unpack $  
                  mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]  
 
-botsLongPollAPI :: IO ()
-botsLongPollAPI = do
+botsLongPollAPI :: StateT Environment IO ()
+botsLongPollAPI = do  
   let obj = primaryData
   case obj of
     Left _ -> pure ()      
@@ -157,18 +157,23 @@ botsLongPollAPI = do
           ts' = ts $ response v
       fun server' key' ts' 
   where 
-    fun s k t =  
+    fun s k t = do
+      env <- get 
       case getVkData s k t of
         Nothing -> botsLongPollAPI 
         Just w  -> do
-          let arr = updates w
+          let obj' = wholeObjectVk w
+              arr  = result obj'
+          put $ Environment (update_id $ last arr) (userData env)    
           case arr of 
             [] -> do
-                    print "Cycle"
+                    lift $ print "Cycle"                    
                     fun s k $ offset w
             _  -> do                            
-              mapM_ (repeatMessage 3) arr
+              lift $ mapM_ (repeatMessage 3) arr
               fun s k $ offset w           
+
+
 
 wholeObjectVk :: VkData -> WholeObject
 wholeObjectVk obj = WholeObject
