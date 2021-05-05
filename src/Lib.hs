@@ -20,6 +20,8 @@ import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
+import System.Random
+
 
 data Configuration = Configuration
   { messenger :: T.Text
@@ -194,11 +196,46 @@ stringRequest str =
 message' :: MessageDate -> Message    
 message' obj = message $ obj
 
+forwardMessagesVk :: Int -> MessageDate -> Request
+forwardMessagesVk randomId' obj = 
+  parseRequest_ $  
+    mconcat ["https://"
+            , myHost
+            , "/method/messages.send?user_id="
+            , userId
+            , "&random_id="
+            , show randomId'
+            , "&peer_id=-"
+            , show $ groupIdVK configuration
+            , "&forward_messages="
+            , messId 
+            , "&access_token="            
+            , myToken
+            , "&v="
+            , T.unpack $ apiVKVersion configuration
+            ]
+  where
+    userId = T.unpack $ username $ chat $ message' obj  
+    messId = show $ message_id $ message' obj     
+
+randomId :: IO Int
+randomId = randomRIO (1, 1000000)
+    
+repeatMessageVk :: MessageDate -> IO (Response LC.ByteString)
+repeatMessageVk obj = do
+  r <- randomId
+  let string = forwardMessagesVk r obj 
+  writingLine DEBUG $ show string
+  httpLBS $ string       
+
 sandRepeats :: MessageDate -> Environment -> IO ()
 sandRepeats obj env =     
-    replicateM_ num $ do
-      writingLine DEBUG $ show string
-      httpLBS $ string 
+    replicateM_ num $ 
+      if currentMessenger == "TG"
+          then do
+            writingLine DEBUG $ show string
+            httpLBS $ string 
+          else repeatMessageVk obj      
   where
     num = getRepeats obj env
     messageId = show $ message_id $ message' obj

@@ -17,7 +17,6 @@ import qualified Data.Text as T hiding (last)
 import Data.Time
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
-import System.Random
 import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 import Lib
@@ -83,40 +82,8 @@ getLongPollServer =
             , myToken
             , "&v="
             , T.unpack $ apiVKVersion configuration
-            ] 
+            ]        
 
-randomId :: IO Int
-randomId = randomRIO (1, 1000000)
-
-messageSend :: Int -> MessageDate -> Request
-messageSend randomId' obj = 
-  parseRequest_ $  
-    mconcat ["https://"
-            , myHost
-            , "/method/messages.send?user_id="
-            , show userId
-            , "&random_id="
-            , show randomId'
-            , "&peer_id=-"
-            , show $ groupIdVK configuration
-            , "&forward_messages="
-            , show messId 
-            , "&access_token="            
-            , myToken
-            , "&v="
-            , T.unpack $ apiVKVersion configuration
-            ]
-  where
-    userId = username $ chat $ message' obj  
-    messId = show $ message_id $ message' obj     
-    
-repeatMessage :: Int -> MessageDate -> IO ()
-repeatMessage num obj = mapM_ (\x -> fun) [1..num] 
-  where
-    fun = do
-      r <- randomId
-      httpLBS $ messageSend r obj             
-  
 primaryData :: Either String VkResponse
 primaryData = unsafePerformIO $ do
   x <- httpLBS getLongPollServer
@@ -169,9 +136,12 @@ botsLongPollAPI = do
             [] -> do
                     lift $ print "Cycle"                    
                     fun s k $ offset w
-            _  -> do                            
-              lift $ mapM_ (repeatMessage 3) arr
-              fun s k $ offset w           
+            _  -> do 
+              lift $ print arr                          
+              lift $ mapM_ (\x -> sandRepeats x env) arr
+              fun s k $ offset w            
+
+
 
 
 
