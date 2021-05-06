@@ -250,10 +250,13 @@ sandRepeats obj env =
         , messageId
         ]   
       
-ifKeyWord :: MessageDate -> StateT Environment IO ()
-ifKeyWord obj = do
+ifKeyWord :: Maybe WholeObject -> MessageDate -> StateT Environment IO ()
+ifKeyWord getDataVk obj = do
   env <- get
-  let Just arr = result <$> evalState getData env
+  let Just arr = result <$> fun 
+      fun = if currentMessenger == "TG"
+              then evalState getData env
+              else getDataVk     
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -262,7 +265,7 @@ ifKeyWord obj = do
     Just "/repeat" -> do         
       lift $ writingLine INFO $ "Received /repeat from " ++ usrName
       lift $ sendKeyboard obj env       
-      wordIsRepeat obj arr       
+      wordIsRepeat getDataVk obj arr       
         
     Just "/help" -> do
       lift $ writingLine INFO $ "Received /help from " ++ usrName 
@@ -274,13 +277,16 @@ ifKeyWord obj = do
       pure () 
   
   
-wordIsRepeat :: MessageDate -> [MessageDate] -> StateT Environment IO () 
-wordIsRepeat obj [] = do
+wordIsRepeat :: Maybe WholeObject -> MessageDate -> [MessageDate] -> StateT Environment IO () 
+wordIsRepeat getDataVk obj [] = do
   env <- get
-  let Just newArr = result <$> evalState getData env
-  wordIsRepeat obj newArr
+  let Just newArr = result <$> fun 
+      fun = if currentMessenger == "TG"
+              then evalState getData env
+              else getDataVk 
+  wordIsRepeat getDataVk obj newArr
   
-wordIsRepeat obj (x:xs) = do
+wordIsRepeat getDataVk obj (x:xs) = do
   env <- get
   let newObj = x
       newEnv = Environment (1 + update_id newObj) (userData env)
@@ -306,9 +312,9 @@ wordIsRepeat obj (x:xs) = do
           put newEnv 
                      
     _ -> do
-      ifKeyWord newObj
+      ifKeyWord getDataVk newObj
       put newEnv 
-      wordIsRepeat obj xs
+      wordIsRepeat getDataVk obj xs
                      
 
 one :: KeyboardButton
@@ -488,5 +494,5 @@ endlessCycle =  do
       let Just arr = result <$> obj
       put $ Environment (1 + (update_id $ last arr)) (userData env)          
       newEnv <- get
-      mapM_ ifKeyWord arr                                
+      mapM_ (ifKeyWord Nothing) arr                                
       endlessCycle   

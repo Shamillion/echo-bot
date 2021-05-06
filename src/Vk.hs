@@ -71,6 +71,32 @@ data MessageVK = MessageVK
   
 instance FromJSON MessageVK    
 
+wholeObjectVk :: VkData -> WholeObject
+wholeObjectVk obj = WholeObject
+  { ok = True
+  , result = map (messageDateVk num) (updates obj)
+  }
+  where num = read $ T.unpack $ offset obj 
+        
+messageDateVk :: Int -> Updates -> MessageDate
+messageDateVk num obj = MessageDate
+  { update_id = num
+  , Lib.message = messageVk obj
+  }
+
+messageVk :: Updates -> Message
+messageVk obj = Message
+  { message_id = Vk.id $ Vk.message $ object' obj  
+  , chat = chatVk obj
+  , textM = Just $ Vk.text $ Vk.message $ object' obj  
+  }
+
+chatVk :: Updates -> Chat
+chatVk obj = Chat 
+  { Lib.id = groupIdVK configuration
+  , username = T.pack $ show $ from_id $ Vk.message $ object' obj  
+  }
+
 getLongPollServer :: Request
 getLongPollServer = 
   parseRequest_ $  
@@ -97,7 +123,7 @@ primaryData = unsafePerformIO $ do
       writingLine DEBUG $ show v 
       pure obj
  
-getVkData :: T.Text -> T.Text -> T.Text -> Maybe VkData
+getVkData :: T.Text -> T.Text -> T.Text -> Maybe WholeObject
 getVkData s k t = unsafePerformIO $ do
   x <- httpLBS $ parseRequest_  string
   writingLine DEBUG $ string      
@@ -109,7 +135,11 @@ getVkData s k t = unsafePerformIO $ do
       pure Nothing
     Right v -> do 
       writingLine DEBUG $ show v 
-      pure v 
+      case updates v of
+        [] -> do
+          print "Cycle" 
+          pure $ getVkData s k $ offset v
+        _ -> pure $ pure $ wholeObjectVk v 
   where string = T.unpack $  
                  mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]  
 
@@ -129,47 +159,18 @@ botsLongPollAPI = do
       case getVkData s k t of
         Nothing -> botsLongPollAPI 
         Just w  -> do
-          let obj' = wholeObjectVk w
-              arr  = result obj'
+          let arr = result w
+              getVkData' = getVkData s k $ T.pack $ show $ last arr
           put $ Environment (update_id $ last arr) (userData env)    
-          case arr of 
-            [] -> do
-                    lift $ print "Cycle"                    
-                    fun s k $ offset w
-            _  -> do 
-              lift $ print arr                          
-              lift $ mapM_ (\x -> sandRepeats x env) arr
-              fun s k $ offset w            
+          lift $ print arr                          
+          mapM_ (ifKeyWord getVkData') arr
+          newEnv <- get
+          fun s k $ T.pack $ show $ lastUpdate newEnv            
 
 
 
 
 
-wholeObjectVk :: VkData -> WholeObject
-wholeObjectVk obj = WholeObject
-  { ok = True
-  , result = map (messageDateVk num) (updates obj)
-  }
-  where num = read $ T.unpack $ offset obj 
-        
-messageDateVk :: Int -> Updates -> MessageDate
-messageDateVk num obj = MessageDate
-  { update_id = num
-  , Lib.message = messageVk obj
-  }
-
-messageVk :: Updates -> Message
-messageVk obj = Message
-  { message_id = Vk.id $ Vk.message $ object' obj  
-  , chat = chatVk obj
-  , textM = Just $ Vk.text $ Vk.message $ object' obj  
-  }
-
-chatVk :: Updates -> Chat
-chatVk obj = Chat 
-  { Lib.id = groupIdVK configuration
-  , username = T.pack $ show $ from_id $ Vk.message $ object' obj  
-  }
 
 
 
