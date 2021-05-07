@@ -400,18 +400,39 @@ sendKeyboard obj env = do
         ]
         
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
-sendComment obj str = do
+sendComment obj str = do   
     writingLine DEBUG $ show string
     httpLBS string  
   where 
-    string = stringRequest $    
-      mconcat
-        [ "/sendMessage?chat_id="
-        , show $ Lib.id $ chat $ message' obj
-        , "&text="
-        , stringToUrl $ str
-        ]        
-  
+    string = 
+      if currentMessenger == "TG"
+        then stringRequest $    
+               mconcat
+                 [ "/sendMessage?chat_id="
+                 , show $ Lib.id $ chat $ message' obj
+                 , "&text="
+                 , stringToUrl str
+                 ] 
+        else parseRequest_ $  
+               mconcat 
+                 ["https://"
+                 , myHost
+                 , "/method/messages.send?user_id="
+                 , userId
+                 , "&random_id="
+                 , randomId' 
+                 , "&peer_id=-"
+                 , show $ groupIdVK configuration
+                 , "&message="
+                 , stringToUrl str 
+                 , "&access_token="            
+                 , myToken
+                 , "&v="
+                 , T.unpack $ apiVKVersion configuration
+                 ]            
+    userId = T.unpack $ username $ chat $ message' obj  
+    randomId' = show $ message_id $ message' obj      
+
 type Username   = T.Text
 type NumRepeats = Int
   
