@@ -250,13 +250,13 @@ sandRepeats obj env =
         , messageId
         ]   
       
-ifKeyWord :: Maybe WholeObject -> MessageDate -> StateT Environment IO ()
+ifKeyWord :: (Int -> Maybe WholeObject) -> MessageDate -> StateT Environment IO ()
 ifKeyWord getDataVk obj = do
   env <- get
   let Just arr = result <$> fun 
       fun = if currentMessenger == "TG"
               then evalState getData env
-              else getDataVk     
+              else getDataVk $ lastUpdate env     
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -277,22 +277,24 @@ ifKeyWord getDataVk obj = do
       pure () 
   
   
-wordIsRepeat :: Maybe WholeObject -> MessageDate -> [MessageDate] -> StateT Environment IO () 
+wordIsRepeat :: (Int -> Maybe WholeObject) -> MessageDate -> 
+                             [MessageDate] -> StateT Environment IO () 
 wordIsRepeat getDataVk obj [] = do
   env <- get
   let Just newArr = result <$> fun 
       fun = if currentMessenger == "TG"
               then evalState getData env
-              else getDataVk 
+              else getDataVk $ lastUpdate env
   wordIsRepeat getDataVk obj newArr
   
 wordIsRepeat getDataVk obj (x:xs) = do
   env <- get
   let newObj = x
-      newEnv = Environment (1 + update_id newObj) (userData env)
+      newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message' newObj
       usrName = username $ chat $ message' obj
       newUsrName = username $ chat $ message' newObj 
+      num = if currentMessenger == "TG" then 1 else 0
   case (usrName == newUsrName) of
     True -> 
       case (elem val ["1","2","3","4","5"]) of      
@@ -304,7 +306,7 @@ wordIsRepeat getDataVk obj (x:xs) = do
                        ++ T.unpack val 
                        ++ " repeat(s) to "
                        ++ T.unpack usrName
-          put  $ Environment (1 + update_id newObj) 
+          put $ Environment (num + update_id newObj) 
                              (Map.insert usrName (read $ T.unpack val) 
                                                         (userData env))                                                                 
         _ -> do                     
@@ -508,12 +510,13 @@ firstUpdateIDSession =  do
 endlessCycle :: StateT Environment IO ()
 endlessCycle =  do
   env <- get  
-  let obj = evalState getData env          
+  let obj = evalState getData env 
+      nothing num = Nothing         
   case obj of
     Nothing -> lift $ writingLine ERROR "Broken request!"               
     _ -> do
       let Just arr = result <$> obj
       put $ Environment (1 + (update_id $ last arr)) (userData env)          
       newEnv <- get
-      mapM_ (ifKeyWord Nothing) arr                                
+      mapM_ (ifKeyWord nothing) arr                                
       endlessCycle   

@@ -160,7 +160,7 @@ botsLongPollAPI = do
         Nothing -> botsLongPollAPI 
         Just w  -> do
           let arr = result w
-              getVkData' = getVkData s k $ T.pack $ show $ last arr
+              getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
           put $ Environment (update_id $ last arr) (userData env)    
           lift $ print arr                          
           mapM_ (ifKeyWord getVkData') arr
