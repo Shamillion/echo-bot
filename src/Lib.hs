@@ -37,11 +37,15 @@ data Configuration = Configuration
   , priorityLevel :: Priority  
   , logOutput :: T.Text
   } deriving (Show, Generic)
+
+instance FromJSON Configuration
   
 data Chat = Chat 
   { id :: Int
   , username :: T.Text  
   } deriving (Show, Generic)
+
+instance FromJSON Chat 
 
 data Message = Message
   { message_id :: Int
@@ -49,25 +53,40 @@ data Message = Message
   , textM :: Maybe T.Text
   }
   deriving (Show)
+  
+instance FromJSON Message where
+  parseJSON (Object v) = do
+    message_id <- v .: "message_id"
+    chat  <- v .: "chat"
+    textM <- v .:? "text"
+    pure $ Message message_id chat textM  
 
 data MessageDate = MessageDate
   { update_id :: Int
   , message :: Message
   }
   deriving (Show, Generic)
+  
+instance FromJSON MessageDate  
 
 data WholeObject = WholeObject
   { ok :: Bool
   , result :: [MessageDate]
   }
   deriving (Show, Generic)
+  
+instance FromJSON WholeObject  
 
 newtype KeyboardButton = KeyboardButton
   {text :: T.Text}
   deriving (Show, Generic)
 
+instance ToJSON KeyboardButton  
+
 newtype KeyboardButtons = KeyboardButtons [KeyboardButton]
   deriving (Show, Generic)
+
+instance ToJSON KeyboardButtons  
 
 data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   { keyboard :: [KeyboardButtons]
@@ -75,32 +94,60 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   , one_time_keyboard :: Bool
   }
   deriving (Show, Generic)
+
+instance ToJSON ReplyKeyboardMarkup  
   
 data Priority = DEBUG | INFO | WARNING | ERROR  
   deriving (Show, Eq, Ord, Generic)
 
-instance FromJSON Configuration
-
-instance FromJSON Chat 
-
-instance FromJSON Message where
-  parseJSON (Object v) = do
-    message_id <- v .: "message_id"
-    chat  <- v .: "chat"
-    textM <- v .:? "text"
-    pure $ Message message_id chat textM
-
-instance FromJSON MessageDate
-
-instance FromJSON WholeObject
-
-instance ToJSON KeyboardButton
-
-instance ToJSON KeyboardButtons
-
-instance ToJSON ReplyKeyboardMarkup
-
 instance FromJSON Priority
+
+data ActionVk = ActionVk 
+  { type' :: T.Text
+  , label :: T.Text
+  } 
+  deriving Show
+  
+instance ToJSON ActionVk where
+  toJSON (ActionVk type' label) =
+    object [ "type" .= type'
+           , "label" .= label
+           ] 
+
+newtype ButtonVk = ButtonVk
+  {action :: ActionVk}
+  deriving (Show, Generic) 
+
+instance ToJSON ButtonVk  
+  
+data KeyboardVk = KeyboardVk
+  { one_time :: Bool
+  , buttonsVk :: [[ButtonVk]]
+  }
+  deriving Show
+
+instance ToJSON KeyboardVk where
+  toJSON (KeyboardVk one_time buttonsVk) =
+    object [ "one_time" .= one_time
+           , "buttons" .= buttonsVk
+           ]              
+
+buttonVk :: Int -> ButtonVk
+buttonVk num = ButtonVk
+  { action = toAction num
+  }
+
+toAction :: Int -> ActionVk
+toAction num = ActionVk
+  { type' = "text"
+  , label = T.pack $ show num
+  }
+
+keyboardVk :: KeyboardVk
+keyboardVk = KeyboardVk
+  { one_time = True
+  , buttonsVk = [[buttonVk 1, buttonVk 2, buttonVk 3, buttonVk 4, buttonVk 5]]
+  }
 
 time :: IO String
 time = (take 19) <$> show <$> getCurrentTime
@@ -318,39 +365,17 @@ wordIsRepeat getDataVk obj (x:xs) = do
       put newEnv 
       wordIsRepeat getDataVk obj xs
                      
-
-one :: KeyboardButton
-one =
-  KeyboardButton
-    { text = "1"
-    }
-
-two :: KeyboardButton
-two =
-  KeyboardButton
-    { text = "2"
-    }
-
-three :: KeyboardButton
-three =
-  KeyboardButton
-    { text = "3"
-    }
-
-four :: KeyboardButton
-four =
-  KeyboardButton
-    { text = "4"
-    }
-
-five :: KeyboardButton
-five =
-  KeyboardButton
-    { text = "5"
-    }
+toKeyboardButton :: Int -> KeyboardButton
+toKeyboardButton num = KeyboardButton { text = T.pack $ show num }
 
 buttons :: KeyboardButtons
-buttons =  KeyboardButtons [one, two, three, four, five]
+buttons =  KeyboardButtons 
+             [ toKeyboardButton 1
+             , toKeyboardButton 2
+             , toKeyboardButton 3
+             , toKeyboardButton 4
+             , toKeyboardButton 5
+             ]
 
 numRepeat :: ReplyKeyboardMarkup
 numRepeat =
@@ -388,19 +413,40 @@ stringToUrl str = Prelude.foldl fun "" str
 
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
+    randomId' <- randomId
+    let string = if currentMessenger == "TG"
+          then stringRequest $    
+                 mconcat
+                   [ "/sendMessage?chat_id="
+                   , show $ Lib.id $ chat $ message' obj
+                   , "&text="
+                   , stringToUrl $ question obj env
+                   , "&reply_markup="
+                   , stringToUrl $ LC.unpack $ encode numRepeat
+                   ]
+          else parseRequest_ $  
+                 mconcat 
+                   ["https://"
+                   , myHost
+                   , "/method/messages.send?user_id="
+                   , userId
+                   , "&random_id="
+                   , show randomId' 
+                   , "&peer_id=-"
+                   , show $ groupIdVK configuration
+                   , "&message="
+                   , stringToUrl $ question obj env
+                   , "&keyboard="
+                   , stringToUrl $ LC.unpack $ encode keyboardVk
+                   , "&access_token="            
+                   , myToken
+                   , "&v="
+                   , T.unpack $ apiVKVersion configuration
+                   ]            
+        userId = T.unpack $ username $ chat $ message' obj             
     writingLine DEBUG $ show string
-    httpLBS string 
-  where 
-    string = stringRequest $    
-      mconcat
-        [ "/sendMessage?chat_id="
-        , show $ Lib.id $ chat $ message' obj
-        , "&text="
-        , stringToUrl $ question obj env
-        , "&reply_markup="
-        , stringToUrl $ LC.unpack $ encode numRepeat
-        ]
-        
+    httpLBS string            
+            
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
 sendComment obj str = do   
     writingLine DEBUG $ show string
