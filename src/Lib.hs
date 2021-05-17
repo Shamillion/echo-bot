@@ -234,32 +234,36 @@ type UpdateID = Int
 
 getUpdates :: Int -> String
 getUpdates num = mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
-
+    
 stringRequest :: String -> Request
 stringRequest str =
-  parseRequest_ $
-    mconcat ["https://", messengerHost, myToken, str] 
-    
+  parseRequest_ $ 
+    if currentMessenger == "TG"
+      then mconcat ["https://", messengerHost, myToken, str]
+      else mconcat 
+             ["https://"
+             , myHost
+             , "/method/messages.send?user_id="
+             , str
+             , "&peer_id=-"
+             , show $ groupIdVK configuration             
+             , "&access_token="            
+             , myToken
+             , "&v="
+             , T.unpack $ apiVKVersion configuration
+             ]
+ 
 message' :: MessageDate -> Message    
 message' obj = message $ obj
 
 forwardMessagesVk :: Int -> MessageDate -> Request
 forwardMessagesVk randomId' obj = 
-  parseRequest_ $  
-    mconcat ["https://"
-            , myHost
-            , "/method/messages.send?user_id="
-            , userId
+  stringRequest $  
+    mconcat [ userId
             , "&random_id="
             , show randomId'
-            , "&peer_id=-"
-            , show $ groupIdVK configuration
             , "&forward_messages="
-            , messId 
-            , "&access_token="            
-            , myToken
-            , "&v="
-            , T.unpack $ apiVKVersion configuration
+            , messId             
             ]
   where
     userId = T.unpack $ username $ chat $ message' obj  
@@ -414,72 +418,47 @@ stringToUrl str = Prelude.foldl fun "" str
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
     randomId' <- randomId
-    let string = if currentMessenger == "TG"
-          then stringRequest $    
-                 mconcat
-                   [ "/sendMessage?chat_id="
+    let string = 
+          stringRequest $ mconcat $
+            if currentMessenger == "TG"
+              then [ "/sendMessage?chat_id="
                    , show $ Lib.id $ chat $ message' obj
                    , "&text="
                    , stringToUrl $ question obj env
                    , "&reply_markup="
                    , stringToUrl $ LC.unpack $ encode numRepeat
                    ]
-          else parseRequest_ $  
-                 mconcat 
-                   ["https://"
-                   , myHost
-                   , "/method/messages.send?user_id="
-                   , userId
+              else [ userId
                    , "&random_id="
                    , show randomId' 
-                   , "&peer_id=-"
-                   , show $ groupIdVK configuration
                    , "&message="
                    , stringToUrl $ question obj env
                    , "&keyboard="
-                   , stringToUrl $ LC.unpack $ encode keyboardVk
-                   , "&access_token="            
-                   , myToken
-                   , "&v="
-                   , T.unpack $ apiVKVersion configuration
+                   , stringToUrl $ LC.unpack $ encode keyboardVk                   
                    ]            
         userId = T.unpack $ username $ chat $ message' obj             
     writingLine DEBUG $ show string
     httpLBS string            
             
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
-sendComment obj str = do   
-    writingLine DEBUG $ show string
-    httpLBS string  
-  where 
-    string = 
-      if currentMessenger == "TG"
-        then stringRequest $    
-               mconcat
-                 [ "/sendMessage?chat_id="
+sendComment obj str = do
+    randomId' <- randomId
+    let string = stringRequest $ mconcat $
+          if currentMessenger == "TG"
+            then [ "/sendMessage?chat_id="
                  , show $ Lib.id $ chat $ message' obj
                  , "&text="
                  , stringToUrl str
                  ] 
-        else parseRequest_ $  
-               mconcat 
-                 ["https://"
-                 , myHost
-                 , "/method/messages.send?user_id="
-                 , userId
+            else [ userId
                  , "&random_id="
-                 , randomId' 
-                 , "&peer_id=-"
-                 , show $ groupIdVK configuration
+                 , show randomId' 
                  , "&message="
-                 , stringToUrl str 
-                 , "&access_token="            
-                 , myToken
-                 , "&v="
-                 , T.unpack $ apiVKVersion configuration
+                 , stringToUrl str                  
                  ]            
-    userId = T.unpack $ username $ chat $ message' obj  
-    randomId' = show $ message_id $ message' obj      
+        userId = T.unpack $ username $ chat $ message' obj   
+    writingLine DEBUG $ show string
+    httpLBS string        
 
 type Username   = T.Text
 type NumRepeats = Int

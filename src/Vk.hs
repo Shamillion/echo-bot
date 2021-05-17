@@ -112,8 +112,8 @@ getLongPollServer =
 
 primaryData :: Either String VkResponse
 primaryData = unsafePerformIO $ do
-  x <- httpLBS getLongPollServer
   writingLine DEBUG $ show getLongPollServer
+  x <- httpLBS getLongPollServer  
   let obj = eitherDecode $ getResponseBody x    
   case obj of
     Left _ -> do
