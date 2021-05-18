@@ -11,7 +11,6 @@ import Control.Monad.State.Lazy
 import Data.Aeson
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
---import Data.IORef
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T hiding (last)
 import Data.Time
@@ -97,41 +96,36 @@ chatVk obj = Chat
   , username = T.pack $ show $ from_id $ Vk.message $ object' obj  
   }
 
-getLongPollServer :: Request
-getLongPollServer = 
-  parseRequest_ $  
-    mconcat ["https://"
-            , myHost
-            , "/method/groups.getLongPollServer?group_id="
-            , show $ groupIdVK configuration
-            , "&access_token="            
-            , myToken
-            , "&v="
-            , T.unpack $ apiVKVersion configuration
-            ]        
-
-primaryData :: Either String VkResponse
-primaryData = unsafePerformIO $ do
-  writingLine DEBUG $ show getLongPollServer
-  x <- httpLBS getLongPollServer  
-  let obj = eitherDecode $ getResponseBody x    
-  case obj of
-    Left _ -> do
-      writingLine ERROR $ "User authorization failed!"    
-      pure obj
-    Right v -> do 
-      writingLine DEBUG $ show v 
-      pure obj
+ifBrokenConnection :: String -> Int -> IO (Response LC.ByteString)
+ifBrokenConnection str num = do
+    x <- try $ httpLBS $ parseRequest_ str
+    writingLine DEBUG $ str   
+    case x of
+      Left e -> do
+        writingLine ERROR $ show (e :: HttpException)      
+        when (num == 0) $ do
+          getCurrentTime >>= print 
+          print "Connection Failure"
+          print "Trying to set a connection... "          
+        threadDelay 1000000
+        ifBrokenConnection str (num + 1)
+      Right v -> do 
+        writingLine DEBUG $ show v 
+        when (num /= 0) $ do         
+          getCurrentTime >>= print
+          print "Connection restored"
+        pure v
+  
  
 getVkData :: T.Text -> T.Text -> T.Text -> Maybe WholeObject
 getVkData s k t = unsafePerformIO $ do
-  x <- httpLBS $ parseRequest_  string
+  x <- ifBrokenConnection string 0
   writingLine DEBUG $ string      
   let obj = eitherDecode $ getResponseBody x    
   case obj of
     Left e -> do
       print $ getResponseBody x
-      writingLine ERROR $ e --"Error Bots Long Poll API"    
+      writingLine ERROR $ e     
       pure Nothing
     Right v -> do 
       writingLine DEBUG $ show v 
@@ -145,14 +139,21 @@ getVkData s k t = unsafePerformIO $ do
 
 botsLongPollAPI :: StateT Environment IO ()
 botsLongPollAPI = do  
-  let obj = primaryData
-  case obj of
-    Left _ -> pure ()      
-    Right v -> do
-      let server' = server $ response v
-          key' = key $ response v
-          ts' = ts $ response v
-      fun server' key' ts' 
+  envir <- get
+  let x = unsafePerformIO $ connection envir 0
+      code = getResponseStatusCode x 
+      writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
+  case code == 200 of
+    False -> lift $ writingLine ERROR $ "statusCode " ++ show code      
+    _ -> do
+      let obj = eitherDecode $ getResponseBody x   
+      case obj of
+        Left e  -> lift $ writingLine ERROR $ show e     
+        Right v -> do
+          let server' = server $ response v
+              key' = key $ response v
+              ts' = ts $ response v
+          fun server' key' ts' 
   where 
     fun s k t = do
       env <- get 

@@ -477,7 +477,20 @@ getRepeats obj env = case (Map.lookup usrName $ userData env) of
 
 environment :: Environment  
 environment =  Environment 0 $ Map.singleton "" (defaultRepaets configuration) 
-
+       
+getLongPollServer :: Request
+getLongPollServer = 
+  parseRequest_ $  
+    mconcat ["https://"
+            , myHost
+            , "/method/groups.getLongPollServer?group_id="
+            , show $ groupIdVK configuration
+            , "&access_token="            
+            , myToken
+            , "&v="
+            , T.unpack $ apiVKVersion configuration
+            ] 
+            
 connection :: Environment -> Int -> IO (Response LC.ByteString)
 connection env num = do
     x <- try $ httpLBS string
@@ -498,8 +511,10 @@ connection env num = do
           print "Connection restored"
         pure v
   where 
-    string = stringRequest $ getUpdates $ lastUpdate env         
-
+    string = if currentMessenger == "TG"
+              then stringRequest $ getUpdates $ lastUpdate env  
+              else getLongPollServer
+              
 getData :: State Environment (Maybe WholeObject)
 getData =  do
   env <- get
