@@ -3,17 +3,13 @@
 
 module Vk where
 
-import Control.Concurrent (threadDelay)
 import Control.Exception (try)
 import Control.Monad
-import Control.Monad.Identity (Identity (runIdentity))
 import Control.Monad.State.Lazy
 import Data.Aeson
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
-import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T hiding (last)
-import Data.Time
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import System.IO
@@ -95,32 +91,11 @@ chatVk obj = Chat
   { Lib.id = groupIdVK configuration
   , username = T.pack $ show $ from_id $ Vk.message $ object' obj  
   }
-
-ifBrokenConnection :: String -> Int -> IO (Response LC.ByteString)
-ifBrokenConnection str num = do
-    x <- try $ httpLBS $ parseRequest_ str
-    writingLine DEBUG $ str   
-    case x of
-      Left e -> do
-        writingLine ERROR $ show (e :: HttpException)      
-        when (num == 0) $ do
-          getCurrentTime >>= print 
-          print "Connection Failure"
-          print "Trying to set a connection... "          
-        threadDelay 1000000
-        ifBrokenConnection str (num + 1)
-      Right v -> do 
-        writingLine DEBUG $ show v 
-        when (num /= 0) $ do         
-          getCurrentTime >>= print
-          print "Connection restored"
-        pure v
-  
  
 getVkData :: T.Text -> T.Text -> T.Text -> Maybe WholeObject
 getVkData s k t = unsafePerformIO $ do
-  x <- ifBrokenConnection string 0
-  writingLine DEBUG $ string      
+  x <- connection req 0
+  writingLine DEBUG $ show req      
   let obj = eitherDecode $ getResponseBody x    
   case obj of
     Left e -> do
@@ -134,13 +109,26 @@ getVkData s k t = unsafePerformIO $ do
           print "Cycle" 
           pure $ getVkData s k $ offset v
         _ -> pure $ pure $ wholeObjectVk v 
-  where string = T.unpack $  
+  where req = parseRequest_ $ T.unpack $  
                  mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]  
+
+getLongPollServer :: Request
+getLongPollServer = 
+  parseRequest_ $  
+    mconcat ["https://"
+            , myHost
+            , "/method/groups.getLongPollServer?group_id="
+            , show $ groupIdVK configuration
+            , "&access_token="            
+            , myToken
+            , "&v="
+            , T.unpack $ apiVKVersion configuration
+            ] 
 
 botsLongPollAPI :: StateT Environment IO ()
 botsLongPollAPI = do  
   envir <- get
-  let x = unsafePerformIO $ connection envir 0
+  let x = unsafePerformIO $ connection getLongPollServer 0
       code = getResponseStatusCode x 
       writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
@@ -167,15 +155,4 @@ botsLongPollAPI = do
           mapM_ (ifKeyWord getVkData') arr
           newEnv <- get
           fun s k $ T.pack $ show $ lastUpdate newEnv            
-
-
-
-
-
-
-
-
-
-
-
 

@@ -6,7 +6,6 @@ module Lib where
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
 import Control.Monad
-import Control.Monad.Identity (Identity (runIdentity))
 import Control.Monad.State.Lazy
 import Data.Aeson
 --import qualified Data.ByteString as B
@@ -83,13 +82,8 @@ newtype KeyboardButton = KeyboardButton
 
 instance ToJSON KeyboardButton  
 
-newtype KeyboardButtons = KeyboardButtons [KeyboardButton]
-  deriving (Show, Generic)
-
-instance ToJSON KeyboardButtons  
-
 data ReplyKeyboardMarkup = ReplyKeyboardMarkup
-  { keyboard :: [KeyboardButtons]
+  { keyboard :: [[KeyboardButton]]
   , resize_keyboard :: Bool
   , one_time_keyboard :: Bool
   }
@@ -146,7 +140,7 @@ toAction num = ActionVk
 keyboardVk :: KeyboardVk
 keyboardVk = KeyboardVk
   { one_time = True
-  , buttonsVk = [[buttonVk 1, buttonVk 2, buttonVk 3, buttonVk 4, buttonVk 5]]
+  , buttonsVk = [map buttonVk [1..5]] 
   }
 
 time :: IO String
@@ -371,25 +365,16 @@ wordIsRepeat getDataVk obj (x:xs) = do
                      
 toKeyboardButton :: Int -> KeyboardButton
 toKeyboardButton num = KeyboardButton { text = T.pack $ show num }
-
-buttons :: KeyboardButtons
-buttons =  KeyboardButtons 
-             [ toKeyboardButton 1
-             , toKeyboardButton 2
-             , toKeyboardButton 3
-             , toKeyboardButton 4
-             , toKeyboardButton 5
-             ]
-
+             
 numRepeat :: ReplyKeyboardMarkup
 numRepeat =
   ReplyKeyboardMarkup
-    { keyboard = [buttons]
+    { keyboard = [map toKeyboardButton [1..5]]
     , resize_keyboard = True
     , one_time_keyboard = True
     }
 
-question :: MessageDate ->  Environment -> String
+question :: MessageDate -> Environment -> String
 question obj env = 
   mconcat 
     [ "Currently set to "
@@ -468,7 +453,7 @@ data Environment = Environment
   , userData   :: Map.Map Username NumRepeats
   }
 
-getRepeats :: MessageDate ->  Environment -> Int
+getRepeats :: MessageDate -> Environment -> Int
 getRepeats obj env = case (Map.lookup usrName $ userData env) of
             Nothing -> defaultRepaets configuration
             Just n  -> n
@@ -477,24 +462,11 @@ getRepeats obj env = case (Map.lookup usrName $ userData env) of
 
 environment :: Environment  
 environment =  Environment 0 $ Map.singleton "" (defaultRepaets configuration) 
-       
-getLongPollServer :: Request
-getLongPollServer = 
-  parseRequest_ $  
-    mconcat ["https://"
-            , myHost
-            , "/method/groups.getLongPollServer?group_id="
-            , show $ groupIdVK configuration
-            , "&access_token="            
-            , myToken
-            , "&v="
-            , T.unpack $ apiVKVersion configuration
-            ] 
             
-connection :: Environment -> Int -> IO (Response LC.ByteString)
-connection env num = do
-    x <- try $ httpLBS string
-    writingLine DEBUG $ show string   
+connection :: Request -> Int -> IO (Response LC.ByteString)
+connection req num = do
+    x <- try $ httpLBS req
+    writingLine DEBUG $ show req   
     case x of
       Left e -> do
         writingLine ERROR $ show (e :: HttpException)      
@@ -503,22 +475,19 @@ connection env num = do
           print "Connection Failure"
           print "Trying to set a connection... "          
         threadDelay 1000000
-        connection env (num + 1)
+        connection req (num + 1)
       Right v -> do 
         writingLine DEBUG $ show v 
         when (num /= 0) $ do         
           getCurrentTime >>= print
           print "Connection restored"
         pure v
-  where 
-    string = if currentMessenger == "TG"
-              then stringRequest $ getUpdates $ lastUpdate env  
-              else getLongPollServer
               
 getData :: State Environment (Maybe WholeObject)
 getData =  do
   env <- get
-  let x = unsafePerformIO $ connection env 0
+  let req = stringRequest $ getUpdates $ lastUpdate env
+      x = unsafePerformIO $ connection req 0
       code = getResponseStatusCode x 
       writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
