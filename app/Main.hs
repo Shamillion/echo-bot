@@ -2,9 +2,6 @@
 
 module Main where
 
-import Data.Aeson
-import Network.HTTP.Simple
-
 import Control.Monad.State.Lazy
 import Lib
 import Vk

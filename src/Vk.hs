@@ -3,21 +3,16 @@
 
 module Vk where
 
-import Control.Exception (try)
-import Control.Monad
 import Control.Monad.State.Lazy
 import Data.Aeson
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as LC
-import qualified Data.Text as T hiding (last)
+import qualified Data.Text as T 
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
-import System.IO
 import System.IO.Unsafe (unsafePerformIO)
 import Lib
 
-data VkKeyServerTs = VkKeyServerTs
-  { key :: T.Text
+data VkKeyServerTs = VkKeyServerTs       -- Data types for VK answer on    
+  { key :: T.Text                        --   getLongPollServer request.
   , server :: T.Text
   , ts :: T.Text
   } deriving (Show, Generic)
@@ -30,8 +25,8 @@ data VkResponse = VkResponse
 
 instance FromJSON VkResponse   
 
-data VkData = VkData
-  { offset :: T.Text
+data VkData = VkData                    -- Data types for VK answer on
+  { offset :: T.Text                    --   BotsLongPollAPI request.
   , updates :: [Updates]
   }
   deriving Show
@@ -66,8 +61,8 @@ data MessageVK = MessageVK
   
 instance FromJSON MessageVK    
 
-wholeObjectVk :: VkData -> WholeObject
-wholeObjectVk obj = WholeObject
+wholeObjectVk :: VkData -> WholeObject         -- Functions for converting VK's 
+wholeObjectVk obj = WholeObject                --   data to Telegrams's data.
   { ok = True
   , result = map (messageDateVk num) (updates obj)
   }
@@ -93,8 +88,8 @@ chatVk obj = Chat
   }
  
 getVkData :: T.Text -> T.Text -> T.Text -> Maybe WholeObject
-getVkData s k t = unsafePerformIO $ do
-  x <- connection req 0
+getVkData s k t = unsafePerformIO $ do   -- Function for receiving data from 
+  x <- connection req 0                  --     the Telegram server.
   writingLine DEBUG $ show req      
   let obj = eitherDecode $ getResponseBody x    
   case obj of
@@ -105,15 +100,13 @@ getVkData s k t = unsafePerformIO $ do
     Right v -> do 
       writingLine DEBUG $ show v 
       case updates v of
-        [] -> do
-          print "Cycle" 
-          pure $ getVkData s k $ offset v
-        _ -> pure $ pure $ wholeObjectVk v 
+        [] -> pure $ getVkData s k $ offset v
+        _  -> pure $ pure $ wholeObjectVk v 
   where req = parseRequest_ $ T.unpack $  
                  mconcat [ s, "?act=a_check&key=", k, "&ts=", t, "&wait=25" ]  
 
-getLongPollServer :: Request
-getLongPollServer = 
+getLongPollServerRequest :: Request
+getLongPollServerRequest = 
   parseRequest_ $  
     mconcat ["https://"
             , myHost
@@ -125,10 +118,10 @@ getLongPollServer =
             , T.unpack $ apiVKVersion configuration
             ] 
 
-botsLongPollAPI :: StateT Environment IO ()
+botsLongPollAPI :: StateT Environment IO ()   -- Main program cycle for VK.
 botsLongPollAPI = do  
   envir <- get
-  let x = unsafePerformIO $ connection getLongPollServer 0
+  let x = unsafePerformIO $ connection getLongPollServerRequest 0
       code = getResponseStatusCode x 
       writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
