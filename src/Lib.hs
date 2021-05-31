@@ -206,14 +206,14 @@ currentMessenger :: T.Text                   -- Selected messenger.
 currentMessenger = messenger configuration
 
 myHost :: String
-myHost =  if currentMessenger == "TG"            -- The host of selected messenger.
-          then T.unpack $ hostTG configuration
-          else T.unpack $ hostVK configuration                                     
+myHost =  case currentMessenger of             -- The host of selected messenger.
+            "TG" -> T.unpack $ hostTG configuration
+            _    -> T.unpack $ hostVK configuration                                     
 
 myToken :: String                                -- The token of selected messenger.
-myToken =  if currentMessenger == "TG"
-           then T.unpack $ tokenTG configuration
-           else T.unpack $ tokenVK configuration  
+myToken =  case currentMessenger of
+             "TG" -> T.unpack $ tokenTG configuration
+             _    -> T.unpack $ tokenVK configuration  
  
 messengerHost :: String
 messengerHost = myHost ++ "/bot"
@@ -230,9 +230,9 @@ createStringGetUpdates num =
 stringRequest :: String -> Request       -- Request generation.
 stringRequest str =
   parseRequest_ $ 
-    if currentMessenger == "TG"
-      then mconcat ["https://", messengerHost, myToken, str]
-      else mconcat 
+    case currentMessenger of 
+      "TG" -> mconcat ["https://", messengerHost, myToken, str]
+      _    -> mconcat 
              ["https://"
              , myHost
              , "/method/messages.send?user_id="
@@ -274,11 +274,11 @@ repeatMessageVk obj = do                   -- request to VK to return a message.
 sandRepeats :: MessageDate -> Environment -> IO ()  -- Sending repetitions of 
 sandRepeats obj env =                               --    a message.
     replicateM_ num $                               -- Repeat the action num times.
-      if currentMessenger == "TG"
-          then do
+      case currentMessenger of 
+          "TG" -> do
             writingLine DEBUG $ show string
             httpLBS $ string 
-          else repeatMessageVk obj      
+          _    -> repeatMessageVk obj      
   where
     num = getNumRepeats obj env      -- Getting the number of repeats for a current user.
     messageId = show $ message_id $ message' obj
@@ -297,9 +297,9 @@ ifKeyWord :: (Int -> Maybe WholeObject) -> MessageDate -> StateT Environment IO 
 ifKeyWord getDataVk obj = do            -- Keyword search and processing.
   env <- get
   let Just arr = result <$> fun 
-      fun = if currentMessenger == "TG"
-              then evalState getData env
-              else getDataVk $ lastUpdate env     
+      fun = case currentMessenger of 
+              "TG" -> evalState getData env
+              _    -> getDataVk $ lastUpdate env     
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -325,9 +325,9 @@ wordIsRepeat :: (Int -> Maybe WholeObject) -> MessageDate ->
 wordIsRepeat getDataVk obj [] = do         -- getDataVk needed to get
   env <- get                               --   updates from VK.
   let Just newArr = result <$> fun 
-      fun = if currentMessenger == "TG"
-              then evalState getData env
-              else getDataVk $ lastUpdate env
+      fun = case currentMessenger of 
+              "TG" -> evalState getData env
+              _    -> getDataVk $ lastUpdate env
   wordIsRepeat getDataVk obj newArr
   
 wordIsRepeat getDataVk obj (x:xs) = do
@@ -403,22 +403,22 @@ sendKeyboard obj env = do
     randomId' <- randomId
     let string = 
           stringRequest $ mconcat $
-            if currentMessenger == "TG"
-              then [ "/sendMessage?chat_id="
-                   , show $ Lib.id $ chat $ message' obj
-                   , "&text="
-                   , stringToUrl $ question obj env
-                   , "&reply_markup="
-                   , stringToUrl $ LC.unpack $ encode numRepeat
-                   ]
-              else [ userId
-                   , "&random_id="
-                   , show randomId' 
-                   , "&message="
-                   , stringToUrl $ question obj env
-                   , "&keyboard="
-                   , stringToUrl $ LC.unpack $ encode keyboardVk                   
-                   ]            
+            case currentMessenger of 
+              "TG" -> [ "/sendMessage?chat_id="
+                      , show $ Lib.id $ chat $ message' obj
+                      , "&text="
+                      , stringToUrl $ question obj env
+                      , "&reply_markup="
+                      , stringToUrl $ LC.unpack $ encode numRepeat
+                      ]
+              _    -> [ userId
+                      , "&random_id="
+                      , show randomId' 
+                      , "&message="
+                      , stringToUrl $ question obj env
+                      , "&keyboard="
+                      , stringToUrl $ LC.unpack $ encode keyboardVk                   
+                      ]            
         userId = T.unpack $ username $ chat $ message' obj             
     writingLine DEBUG $ show string
     httpLBS string            
@@ -427,18 +427,18 @@ sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
 sendComment obj str = do
     randomId' <- randomId
     let string = stringRequest $ mconcat $
-          if currentMessenger == "TG"
-            then [ "/sendMessage?chat_id="
-                 , show $ Lib.id $ chat $ message' obj
-                 , "&text="
-                 , stringToUrl str
-                 ] 
-            else [ userId
-                 , "&random_id="
-                 , show randomId' 
-                 , "&message="
-                 , stringToUrl str                  
-                 ]            
+          case currentMessenger of 
+            "TG" -> [ "/sendMessage?chat_id="
+                    , show $ Lib.id $ chat $ message' obj
+                    , "&text="
+                    , stringToUrl str
+                    ] 
+            _    -> [ userId
+                    , "&random_id="
+                    , show randomId' 
+                    , "&message="
+                    , stringToUrl str                  
+                    ]            
         userId = T.unpack $ username $ chat $ message' obj   
     writingLine DEBUG $ show string
     httpLBS string        
