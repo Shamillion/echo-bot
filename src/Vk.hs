@@ -144,8 +144,8 @@ botsLongPollAPI = do
           let arr = result w
               getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
           put $ Environment (update_id $ last arr) (userData env)    
-          lift $ print arr                          
-          mapM_ (ifKeyWord getVkData') arr
+          lift $ print arr                   -- Delete       
+          mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
           fun s k $ T.pack $ show $ lastUpdate newEnv            
 

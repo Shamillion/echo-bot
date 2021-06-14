@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1078b191dcfee95176dbbcf8e011459a396a6b6f9365e012f4156616ec5cb465
+-- hash: db3dd2c6f4c53cc2981505ec46d541628f01596b9f6a07820b78730386ca79fb
 
 name:           echo-bot
 version:        0.1.0.0
@@ -74,11 +74,13 @@ test-suite echo-bot-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      aeson
+      QuickCheck
+    , aeson
     , base >=4.7 && <5
     , bytestring
     , containers
     , echo-bot
+    , hspec
     , http-conduit
     , mtl
     , random

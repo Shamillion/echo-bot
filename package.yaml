@@ -54,3 +54,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - echo-bot
+    - hspec
+    - QuickCheck
