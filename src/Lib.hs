@@ -293,22 +293,24 @@ sandRepeats obj env =                               --    a message.
         , messageId
         ]   
  
-data WorkHandle m = WorkHandle
+data WorkHandle m a = WorkHandle
   { writingLine' :: Priority -> String -> m ()  
   , sendKeyboard' :: MessageDate -> Environment -> m (Response LC.ByteString)
   , sendComment' :: MessageDate -> String -> m (Response LC.ByteString) 
-  , sandRepeats' :: MessageDate -> Environment -> m ()   
+  , sandRepeats' :: MessageDate -> Environment -> m ()  
+  , pure' :: a -> StateT Environment m a
   } 
 
-handler :: WorkHandle IO
+handler :: WorkHandle IO ()
 handler  = WorkHandle
   { writingLine'  = writingLine
   , sendKeyboard' = sendKeyboard
   , sendComment'  = sendComment
   , sandRepeats'  = sandRepeats
+  , pure' = pure   
   }
       
-ifKeyWord :: Monad m => WorkHandle m -> (Int -> Maybe WholeObject) -> 
+ifKeyWord :: Monad m => WorkHandle m () -> (Int -> Maybe WholeObject) -> 
                                           MessageDate -> StateT Environment m ()
 ifKeyWord handler getDataVk obj = do            -- Keyword search and processing.
   env <- get
@@ -329,14 +331,14 @@ ifKeyWord handler getDataVk obj = do            -- Keyword search and processing
     Just "/help" -> do
       lift $ writingLine' handler INFO $ "Received /help from " ++ usrName 
       lift $ sendComment' handler obj $ T.unpack $ mconcat $ helpMess configuration      
-      pure ()
+      pure' handler ()
       
     _ -> do
       lift $ sandRepeats' handler obj env
       pure () 
   
                                           -- Changing the number of repetitions.
-wordIsRepeat :: Monad m => WorkHandle m -> (Int -> Maybe WholeObject) -> 
+wordIsRepeat :: Monad m => WorkHandle m () -> (Int -> Maybe WholeObject) -> 
                            MessageDate -> [MessageDate] -> StateT Environment m () 
 wordIsRepeat handler getDataVk obj [] = do         -- getDataVk needed to get
   env <- get                                       --   updates from VK.
