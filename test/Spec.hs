@@ -3,7 +3,7 @@
 import Test.Hspec
 import Test.QuickCheck
 import Control.Monad.Identity
---import qualified Data.Map.Lazy as Map
+import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.State.Lazy
@@ -28,9 +28,9 @@ handlerForTestWordIsRepeat  = WorkHandle
   , sendKeyboard' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
   , sendComment'  = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
   , sandRepeats'  = \x y -> pure "nothing"
-  , wordIsRepeat' = \w x y z -> pure "/repeat"
+  , wordIsRepeat' = \w x y z -> pure "Another user || empty array"
   , pureOne = pure "Number from 1 to 5" 
-  , pureTwo = pure "Not number"  
+  , pureTwo = pure "Not number from 1 to 5"  
   }  
   
 nothing :: Int -> Maybe WholeObject  
@@ -61,13 +61,20 @@ testingFunctionWordIsRepeat :: T.Text -> T.Text -> T.Text -> String
 testingFunctionWordIsRepeat usr1 usr2 txt = 
   runIdentity $ evalStateT 
     (wordIsRepeat handlerForTestWordIsRepeat 
-      nothing (messageDate usr1 txt) [messageDate usr1 txt]) environment 
+      nothing (messageDate usr1 txt) [messageDate usr2 txt]) environment 
+      
+testingFunctionWordIsRepeat' :: T.Text -> T.Text -> T.Text -> Maybe NumRepeats
+testingFunctionWordIsRepeat' usr1 usr2 txt = 
+  Map.lookup usr1 $ userData $ runIdentity $ execStateT 
+    (wordIsRepeat handlerForTestWordIsRepeat 
+      nothing (messageDate usr1 txt) [messageDate usr2 txt]) environment 
+      
+testingFunctionWordIsRepeatWithEmptyArr :: T.Text -> T.Text -> String
+testingFunctionWordIsRepeatWithEmptyArr usr1 txt = 
+  runIdentity $ evalStateT 
+    (wordIsRepeat handlerForTestWordIsRepeat 
+      nothing (messageDate usr1 txt) []) environment            
 
---testingFunctionWordIsRepeat' :: T.Text -> String
---testingFunctionWordIsRepeat' txt = 
-  --runIdentity $ evalStateT 
-    --(wordIsRepeat handlerForTestWordIsRepeat handlerForTestWordIsRepeat 
-      --nothing $ messageDate txt) environment 
 
       
 main :: IO ()
@@ -82,25 +89,28 @@ main = hspec $ do
     --it "catch the others" $ 
       --verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x:xs)) == "anything"    
 
-    --it "returns the first element of an *arbitrary* list" $
-      --verbose $ \x xs -> head (x:xs) == (x :: Int)
   describe "Test function wordIsRepeat" $ do    
-    it "catch the number from 1 to 5" $ 
+    it "catch the number from 1 to 5" $ do
       testingFunctionWordIsRepeat "Tony" "Tony" "1" `shouldBe` "Number from 1 to 5"
-
-    it "catch the number from 1 to 5" $ 
-      testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` "Number from 1 to 5"   
-
-    it "catch the number from 1 to 5" $ 
+      testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` "Number from 1 to 5"       
       testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` "Number from 1 to 5" 
+      
+      testingFunctionWordIsRepeat' "Tony" "Tony" "1" `shouldBe` Just 1
+      testingFunctionWordIsRepeat' "Tony" "Tony" "3" `shouldBe` Just 3
+      testingFunctionWordIsRepeat' "Tony" "Tony" "5" `shouldBe` Just 5      
+      
+    it "the number is not from 1 to 5" $ do
+      testingFunctionWordIsRepeat  "Tony" "Tony" "6" `shouldBe` "Not number from 1 to 5"
+      testingFunctionWordIsRepeat' "Tony" "Tony" "6" `shouldBe` Nothing              
 
-    it "catch the number from 1 to 5" $ 
-      testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` "Not number"              
-      
-    --it "catch the /repeat" $ 
-      --testingFunctionIfKeyWord "/repeat" `shouldBe` "/repeat"  
-      
-    --it "catch the others" $ 
-      --verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x:xs)) == "anything"  
+    it "another user" $ do
+      testingFunctionWordIsRepeat' "Tony" "Many" "3" `shouldBe` Nothing
+      testingFunctionWordIsRepeat' "Tony" "Many" "6" `shouldBe` Nothing
+    
+    it "empty array" $  
+      testingFunctionWordIsRepeatWithEmptyArr "Tony" "3" `shouldBe` "Another user || empty array"
+   
+     
+
   
               
