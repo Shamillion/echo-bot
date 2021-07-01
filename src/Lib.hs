@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Lib where
 
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
+import Data.Foldable
 import Control.Monad.State.Lazy
 import Data.Aeson
 import qualified Data.ByteString.Lazy as L
@@ -32,73 +33,73 @@ data Configuration = Configuration -- Data type for the configuration file.
   , priorityLevel :: Priority
   , logOutput :: T.Text
   }
-  deriving (Show, Generic)
-
-instance FromJSON Configuration
+  deriving (Show, Generic, FromJSON)
 
 data Chat = Chat                   -- Data types for the Telegram answer.
   { id :: Int
   , username :: T.Text
   }
-  deriving (Show, Generic)
-
-instance FromJSON Chat
+  deriving (Show, Generic, FromJSON)
 
 data Message = Message
   { message_id :: Int
   , chat :: Chat
   , textM :: Maybe T.Text
+  , attachments :: Maybe [Media]
   }
-  deriving (Show)
+  deriving Show
 
 instance FromJSON Message where
   parseJSON (Object v) = do
     message_id <- v .: "message_id"
     chat <- v .: "chat"
     textM <- v .:? "text"
-    pure $ Message message_id chat textM
+    attachments <- v .:? "attachments" -- .!= Just [Sticker {sticker_id = 9008 } ]
+    pure $ Message message_id chat textM attachments
 
 data MessageDate = MessageDate
   { update_id :: Int
   , message :: Message
   }
-  deriving (Show, Generic)
-
-instance FromJSON MessageDate
+  deriving (Show, Generic, FromJSON)
 
 data WholeObject = WholeObject
   { ok :: Bool
   , result :: [MessageDate]
   }
-  deriving (Show, Generic)
-
-instance FromJSON WholeObject
+  deriving (Show, Generic, FromJSON)
 
 newtype KeyboardButton = KeyboardButton -- Data type for the Telegram keyboard.
   {text :: T.Text}
-  deriving (Show, Generic)
-
-instance ToJSON KeyboardButton
+  deriving (Show, Generic, ToJSON)
 
 data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   { keyboard :: [[KeyboardButton]]
   , resize_keyboard :: Bool
   , one_time_keyboard :: Bool
   }
-  deriving (Show, Generic)
-
-instance ToJSON ReplyKeyboardMarkup
+  deriving (Show, Generic, ToJSON)
 
 data Priority = DEBUG | INFO | WARNING | ERROR -- Data type for the logger.
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, FromJSON)
 
-instance FromJSON Priority
+data Media =  Sticker {sticker_id :: Int} 
+            | Video   {video_id :: Int}
+  deriving Show
+
+instance FromJSON Media where
+    parseJSON = withObject "Media" $ \v -> asum [
+      Sticker <$> do 
+        sticker0 <- v .: "sticker"
+        sticker_id <- sticker0 .: "sticker_id"
+        pure sticker_id,
+      Video   <$> v .: "video_id" ]
 
 data ActionVk = ActionVk -- Data types for the VK keyboard.
   { type' :: T.Text
   , label :: T.Text
   }
-  deriving (Show)
+  deriving Show
 
 instance ToJSON ActionVk where
   toJSON (ActionVk type' label) =
@@ -109,15 +110,13 @@ instance ToJSON ActionVk where
 
 newtype ButtonVk = ButtonVk
   {action :: ActionVk}
-  deriving (Show, Generic)
-
-instance ToJSON ButtonVk
+  deriving (Show, Generic, ToJSON)
 
 data KeyboardVk = KeyboardVk
   { one_time :: Bool
   , buttonsVk :: [[ButtonVk]]
   }
-  deriving (Show)
+  deriving Show
 
 instance ToJSON KeyboardVk where
   toJSON (KeyboardVk one_time buttonsVk) =
@@ -270,13 +269,29 @@ forwardMessagesVk randomId' obj =                  --   to return a message
  where
   userId = T.unpack $ username $ chat $ message' obj
   messId = show $ message_id $ message' obj
+
 randomId :: IO Int                             -- Generating random numbers 
 randomId = randomRIO (1, 1000000)              --   for VK requests. 
 
 repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) -- Sending a
 repeatMessageVk obj = do              -- request to VK to return a message.
   r <- randomId
-  let string = forwardMessagesVk r obj
+  let string = stringRequest $
+        mconcat $
+          [ userId
+          , "&random_id="
+          , show r
+          , "&message="
+          , stringToUrl $ case arr of
+                            [] -> str
+                            _  -> "?&sticker_id=" ++ stickerID 
+          ]
+      userId = T.unpack $ username $ chat $ message' obj
+      Just arr = attachments $ message' obj
+      stickerID = (sticker_id . head) arr
+      str = T.unpack txt
+      Just txt = textM $ message' obj
+   --   string = forwardMessagesVk r obj
   writingLine DEBUG $ show string
   httpLBS $ string
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Vk where
@@ -15,15 +15,11 @@ data VkKeyServerTs = VkKeyServerTs       -- Data types for VK answer on
   { key :: T.Text                        --   getLongPollServer request.
   , server :: T.Text
   , ts :: T.Text
-  } deriving (Show, Generic)
-  
-instance FromJSON VkKeyServerTs 
+  } deriving (Show, Generic, FromJSON)
 
 newtype VkResponse = VkResponse
   { response :: VkKeyServerTs } 
-  deriving (Show, Generic)  
-
-instance FromJSON VkResponse   
+  deriving (Show, Generic, FromJSON)   
 
 data VkData = VkData                    -- Data types for VK answer on
   { offset :: T.Text                    --   BotsLongPollAPI request.
@@ -41,7 +37,7 @@ data Updates = Updates
   { type' :: T.Text
   , object' :: ObjectVK
   }
-  deriving (Show)
+  deriving Show
 
 instance FromJSON Updates where
   parseJSON (Object v) = do
@@ -51,18 +47,15 @@ instance FromJSON Updates where
 
 newtype ObjectVK = ObjectVK
   {message :: MessageVK}
-  deriving (Show, Generic)
-
-instance FromJSON ObjectVK
+  deriving (Show, Generic, FromJSON)
 
 data MessageVK = MessageVK
   { from_id :: Int
   , id :: Int
   , text :: T.Text
+  , attachments :: [Media]
   }
-  deriving (Show, Generic)
-
-instance FromJSON MessageVK
+  deriving (Show, Generic, FromJSON)
 
 wholeObjectVk :: VkData -> WholeObject -- Functions for converting VK's
 wholeObjectVk obj =                    --   data to Telegrams's data.
@@ -86,6 +79,7 @@ messageVk obj =
     { message_id = Vk.id $ Vk.message $ object' obj
     , chat = chatVk obj
     , textM = Just $ Vk.text $ Vk.message $ object' obj
+    , Lib.attachments = Just $ Vk.attachments $ Vk.message $ object' obj
     }
 
 chatVk :: Updates -> Chat
@@ -100,6 +94,7 @@ getVkData s k t = unsafePerformIO $ do  -- Function for receiving data from
   x <- connection req 0                 --     the Telegram server.
   writingLine DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
+  print $ getResponseBody x            -- Delete
   case obj of
     Left e -> do
       print $ getResponseBody x
@@ -115,6 +110,7 @@ getVkData s k t = unsafePerformIO $ do  -- Function for receiving data from
     parseRequest_ $
       T.unpack $
         mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
+        
 getLongPollServerRequest :: Request
 getLongPollServerRequest =
   parseRequest_ $
@@ -155,7 +151,7 @@ botsLongPollAPI = do
         let arr = result w
             getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
         put $ Environment (update_id $ last arr) (userData env)
-        lift $ print arr -- Delete
+        lift $ print arr                       -- Delete
         mapM_ (ifKeyWord handler getVkData') arr
         newEnv <- get
         fun s k $ T.pack $ show $ lastUpdate newEnv
