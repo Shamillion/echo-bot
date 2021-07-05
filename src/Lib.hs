@@ -3,6 +3,7 @@
 
 module Lib where
 
+import Control.Applicative 
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
 import Data.Foldable
@@ -83,17 +84,33 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
 data Priority = DEBUG | INFO | WARNING | ERROR -- Data type for the logger.
   deriving (Show, Eq, Ord, Generic, FromJSON)
 
-data Media =  Sticker {sticker_id :: Int} 
-            | Video   {video_id :: Int}
+data Media =  Sticker { type_media :: T.Text
+                      , sticker_id :: Int
+                      } 
+            | Others  { type_media :: T.Text
+                      , media_id :: Int
+                      , owner_id :: Int
+                      , access_key :: Maybe T.Text
+                      }
   deriving Show
 
 instance FromJSON Media where
     parseJSON = withObject "Media" $ \v -> asum [
-      Sticker <$> do 
-        sticker0 <- v .: "sticker"
-        sticker_id <- sticker0 .: "sticker_id"
-        pure sticker_id,
-      Video   <$> v .: "video_id" ]
+      do 
+        type_media <- v .: "type"
+        obj <- v .: "sticker"
+        sticker_id <- obj .: "sticker_id"
+        pure $ Sticker type_media sticker_id,
+      do
+        type_media <- v .: "type"
+        obj <- v .: "photo" <|> v .: "video" <|> v .: "audio" <|> v .: "doc"
+                            <|> v .: "market" <|> v .: "poll" <|> v .: "wall"
+                            <|> v .: "audio_message"
+        media_id <- obj .: "id"
+        owner_id <- obj .: "owner_id"
+        access_key <- obj .:? "access_key"
+        pure $ Others type_media media_id owner_id  access_key
+        ]
 
 data ActionVk = ActionVk -- Data types for the VK keyboard.
   { type' :: T.Text
@@ -282,18 +299,38 @@ repeatMessageVk obj = do              -- request to VK to return a message.
           , "&random_id="
           , show r
           , "&message="
-          , stringToUrl $ case arr of
-                            [] -> str
-                            _  -> "?&sticker_id=" ++ stickerID 
+          , stringToUrl $ T.unpack str ++ add ++ attachment arr                     
           ]
       userId = T.unpack $ username $ chat $ message' obj
-      Just arr = attachments $ message' obj
-      stickerID = (sticker_id . head) arr
-      str = T.unpack txt
-      Just txt = textM $ message' obj
+      Just str = textM $ message' obj
+      Just arr = attachments $ message' obj 
+      add = case arr of
+              [] -> ""
+              _  -> case type_media $ head arr of
+                      "sticker" -> ""
+                      _ -> "&attachment="           
    --   string = forwardMessagesVk r obj
   writingLine DEBUG $ show string
   httpLBS $ string
+
+attachment :: [Media] -> String
+attachment [] = ""
+attachment (x:xs) = case x of
+  Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs
+  Others t mI oI k -> mconcat 
+    [ T.unpack t
+    , show oI
+    , "_"
+    , show mI
+    , case k of
+        Just s -> "_" ++ T.unpack s
+        _ -> ""
+    , ","
+    , attachment xs  
+    ]
+ -- _ -> "???" ++ attachment xs    
+
+
 
 sandRepeats :: MessageDate -> Environment -> IO ()   -- Sending repetitions of
 sandRepeats obj env =                                --    a message.
