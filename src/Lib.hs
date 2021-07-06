@@ -87,6 +87,15 @@ data Priority = DEBUG | INFO | WARNING | ERROR -- Data type for the logger.
 data Media =  Sticker { type_media :: T.Text
                       , sticker_id :: Int
                       } 
+            | AudioMessage  { type_media :: T.Text
+                            , media_id :: Int
+                            , owner_id :: Int
+                            , duration :: Int
+                            , waveform :: [Int]
+                            , link_ogg :: T.Text
+                            , link_mp3 :: T.Text
+                            --, access_key :: Maybe T.Text
+                            }          
             | Others  { type_media :: T.Text
                       , media_id :: Int
                       , owner_id :: Int
@@ -103,9 +112,19 @@ instance FromJSON Media where
         pure $ Sticker type_media sticker_id,
       do
         type_media <- v .: "type"
+        obj <- v .: "audio_message"
+        media_id <- obj .: "id"
+        owner_id <- obj .: "owner_id"
+        duration <- obj .: "duration"
+        waveform <- obj .: "waveform"
+        link_ogg <- obj .: "link_ogg"
+        link_mp3 <- obj .: "link_mp3"
+        pure $ AudioMessage type_media media_id owner_id duration waveform
+                            link_ogg link_mp3,        
+      do
+        type_media <- v .: "type"
         obj <- v .: "photo" <|> v .: "video" <|> v .: "audio" <|> v .: "doc"
                             <|> v .: "market" <|> v .: "poll" <|> v .: "wall"
-                            <|> v .: "audio_message"
         media_id <- obj .: "id"
         owner_id <- obj .: "owner_id"
         access_key <- obj .:? "access_key"
@@ -308,6 +327,7 @@ repeatMessageVk obj = do              -- request to VK to return a message.
               [] -> ""
               _  -> case type_media $ head arr of
                       "sticker" -> ""
+                      "audio_message" -> ""
                       _ -> "&attachment="           
    --   string = forwardMessagesVk r obj
   writingLine DEBUG $ show string
@@ -328,7 +348,7 @@ attachment (x:xs) = case x of
     , ","
     , attachment xs  
     ]
- -- _ -> "???" ++ attachment xs    
+  AudioMessage _ _ _ _ _ l _ -> T.unpack l ++ attachment xs    
 
 
 
