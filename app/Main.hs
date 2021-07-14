@@ -5,7 +5,7 @@ module Main where
 import Control.Monad.State.Lazy
 import Lib
 import Vk
-                
+         
 
 main :: IO ()
 main = do  
@@ -19,9 +19,3 @@ main = do
       writingLine INFO "Started VK echobot."
       evalStateT botsLongPollAPI environment
       
-      
-  
-  
-
-
-

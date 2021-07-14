@@ -88,17 +88,12 @@ data Media =  Sticker { type_media :: T.Text
                       , sticker_id :: Int
                       } 
             | AudioMessage  { type_media :: T.Text
-                            , media_id :: Int
-                            , owner_id :: Int
-                            , duration :: Int
-                            , waveform :: [Int]
-                            , link_ogg :: T.Text
-                            , link_mp3 :: T.Text
-                            --, access_key :: Maybe T.Text
-                            }          
+                            , link_mp3 :: T.Text 
+                            }                    
             | Others  { type_media :: T.Text
                       , media_id :: Int
                       , owner_id :: Int
+                      , url :: Maybe T.Text
                       , access_key :: Maybe T.Text
                       }
   deriving Show
@@ -113,22 +108,17 @@ instance FromJSON Media where
       do
         type_media <- v .: "type"
         obj <- v .: "audio_message"
-        media_id <- obj .: "id"
-        owner_id <- obj .: "owner_id"
-        duration <- obj .: "duration"
-        waveform <- obj .: "waveform"
-        link_ogg <- obj .: "link_ogg"
         link_mp3 <- obj .: "link_mp3"
-        pure $ AudioMessage type_media media_id owner_id duration waveform
-                            link_ogg link_mp3,        
+        pure $ AudioMessage type_media link_mp3,        
       do
         type_media <- v .: "type"
         obj <- v .: "photo" <|> v .: "video" <|> v .: "audio" <|> v .: "doc"
                             <|> v .: "market" <|> v .: "poll" <|> v .: "wall"
         media_id <- obj .: "id"
         owner_id <- obj .: "owner_id"
+        url <- obj .:? "url"
         access_key <- obj .:? "access_key"
-        pure $ Others type_media media_id owner_id  access_key
+        pure $ Others type_media media_id owner_id url access_key
         ]
 
 data ActionVk = ActionVk -- Data types for the VK keyboard.
@@ -337,7 +327,7 @@ attachment :: [Media] -> String
 attachment [] = ""
 attachment (x:xs) = case x of
   Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs
-  Others t mI oI k -> mconcat 
+  Others t mI oI u k -> mconcat 
     [ T.unpack t
     , show oI
     , "_"
@@ -348,7 +338,7 @@ attachment (x:xs) = case x of
     , ","
     , attachment xs  
     ]
-  AudioMessage _ _ _ _ _ l _ -> T.unpack l ++ attachment xs    
+  AudioMessage _ l -> T.unpack l ++ attachment xs    
 
 
 
