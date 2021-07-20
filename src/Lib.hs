@@ -9,6 +9,7 @@ import Control.Exception (try)
 import Data.Foldable
 import Control.Monad.State.Lazy
 import Data.Aeson
+import Data.Functor.Identity (runIdentity)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
@@ -55,7 +56,7 @@ instance FromJSON Message where
     message_id <- v .: "message_id"
     chat <- v .: "chat"
     textM <- v .:? "text"
-    attachments <- v .:? "attachments" -- .!= Just [Sticker {sticker_id = 9008 } ]
+    attachments <- v .:? "attachments" 
     pure $ Message message_id chat textM attachments
 
 data MessageDate = MessageDate
@@ -308,7 +309,7 @@ repeatMessageVk obj = do              -- request to VK to return a message.
           , "&random_id="
           , show r
           , "&message="
-          , stringToUrl $ T.unpack str ++ add ++ attachment arr                     
+          , stringToUrl $ T.unpack str ++ add ++ attachment arr userId                    
           ]
       userId = T.unpack $ username $ chat $ message' obj
       Just str = textM $ message' obj
@@ -317,30 +318,31 @@ repeatMessageVk obj = do              -- request to VK to return a message.
               [] -> ""
               _  -> case type_media $ head arr of
                       "sticker" -> ""
-                      "audio_message" -> ""
                       _ -> "&attachment="           
    --   string = forwardMessagesVk r obj
   writingLine DEBUG $ show string
   httpLBS $ string
 
-attachment :: [Media] -> String
-attachment [] = ""
-attachment (x:xs) = case x of
-  Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs
-  Others t mI oI u k -> mconcat 
-    [ T.unpack t
-    , show oI
-    , "_"
-    , show mI
-    , case k of
-        Just s -> "_" ++ T.unpack s
-        _ -> ""
-    , ","
-    , attachment xs  
-    ]
-  AudioMessage _ l -> T.unpack l ++ attachment xs    
-
-
+attachment :: [Media] -> String -> String  -- Processing of attachments for VK.
+attachment [] _ = ""
+attachment (x:xs) userId = case x of
+  Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs userId
+  AudioMessage _ l -> T.unpack l ++ attachment xs userId
+  Others t mI oI u k -> runIdentity $ do
+    let Just lnk = u
+    pure $ if t == "doc" && userId == show oI
+      then T.unpack lnk ++ "," ++ attachment xs userId 
+      else mconcat 
+            [ T.unpack t
+            , show oI
+            , "_"
+            , show mI
+            , case k of
+                Just s -> "_" ++ T.unpack s
+                _ -> ""
+            , ","
+            , attachment xs userId 
+            ]
 
 sandRepeats :: MessageDate -> Environment -> IO ()   -- Sending repetitions of
 sandRepeats obj env =                                --    a message.
