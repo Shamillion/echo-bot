@@ -30,6 +30,11 @@ dependencies:
 - containers
 - random
 
+default-extensions:
+- OverloadedStrings
+- RecordWildCards
+
+
 library:
   source-dirs: src
 

@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Lib where
 
@@ -232,7 +231,7 @@ errorConfig =                  --   file is read unsuccessfully.
 
 configuration :: Configuration              -- Try to read configuration file.
 configuration =
-  case getConfiguration "../config.json" of
+  case getConfiguration "config.json" of
     Right v -> v
     Left e  -> errorConfig
 

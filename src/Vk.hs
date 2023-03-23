@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Vk where
 
@@ -89,8 +88,8 @@ chatVk obj =
     , username = T.pack $ show $ from_id $ Vk.message $ object' obj
     }
  
-getVkData :: T.Text -> T.Text -> T.Text -> Maybe WholeObject
-getVkData s k t = unsafePerformIO $ do  -- Function for receiving data from
+getVkData :: T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
+getVkData s k t = do  -- Function for receiving data from
   x <- connection req 0                 --     the Telegram server.
   writingLine DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
@@ -103,7 +102,7 @@ getVkData s k t = unsafePerformIO $ do  -- Function for receiving data from
     Right v -> do
       writingLine DEBUG $ show v
       case updates v of
-        [] -> pure $ getVkData s k $ offset v
+        [] -> getVkData s k $ offset v
         _ -> pure $ pure $ wholeObjectVk v
  where
   req =
@@ -128,9 +127,9 @@ getLongPollServerRequest =
 botsLongPollAPI :: StateT Environment IO () -- Main program cycle for VK.
 botsLongPollAPI = do
   envir <- get
-  let x = unsafePerformIO $ connection getLongPollServerRequest 0
-      code = getResponseStatusCode x
-      writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
+  x <- lift $ connection getLongPollServerRequest 0
+  let code = getResponseStatusCode x
+  writing <- lift $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
     False -> lift $ writingLine ERROR $ "statusCode " ++ show code
     _ -> do
@@ -145,13 +144,14 @@ botsLongPollAPI = do
  where
   fun s k t = do
     env <- get
-    case getVkData s k t of
+    getVkDt <- lift $ getVkData s k t
+    case getVkDt of
       Nothing -> botsLongPollAPI
       Just w -> do
         let arr = result w
             getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
         put $ Environment (update_id $ last arr) (userData env)
         lift $ print arr                       -- Delete
-        mapM_ (ifKeyWord handler getVkData') arr
+        mapM_ (ifKeyWord handler getVkData') arr                      ----------------
         newEnv <- get
         fun s k $ T.pack $ show $ lastUpdate newEnv
