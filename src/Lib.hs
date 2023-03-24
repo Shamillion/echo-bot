@@ -174,8 +174,8 @@ keyboardVk =
 time :: IO String                             -- Get current time for the logger.
 time = take 19 . show <$> getCurrentTime
 
-file :: Handle                                -- Get Handle for the logfile.
-file  = unsafePerformIO $ openFile "../log.log" AppendMode
+file :: IO Handle                                -- Get Handle for the logfile.
+file  = openFile "../log.log" AppendMode
 
 writingLine :: Priority -> String -> IO () -- Function writes log
 writingLine lvl str =                      --       information down.
@@ -183,23 +183,23 @@ writingLine lvl str =                      --       information down.
     then do
       t <- time
       let string = t ++ " UTC   " ++ fun lvl ++ " - " ++ str
+      out <- logOutput <$> configuration
       case out of
         "file" -> do
-          hPutStrLn file string
-          hFlush file
+          file' <- file
+          hPutStrLn file' string
+          hFlush file'
         _ -> print string
     else pure ()
- where
-  out = logOutput configuration
+ where  
   fun val = case val of
     DEBUG -> "DEBUG  "
     INFO -> "INFO   "
     WARNING -> "WARNING"
     ERROR -> "ERROR  "
 
-getConfiguration :: String -> Either String Configuration
-getConfiguration fileName =              -- Function reads configuration
-  unsafePerformIO $ do                   --  information from file.
+getConfiguration :: String -> IO (Either String Configuration)
+getConfiguration fileName = do                   --  information from file.
     t <- time
     content <- L.readFile fileName
     let obj = eitherDecode content
@@ -208,8 +208,9 @@ getConfiguration fileName =              -- Function reads configuration
       Left e  -> do
         let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ e
         print str
-        hPutStrLn file str
-        hFlush file
+        file' <- file
+        hPutStrLn file' str
+        hFlush file'
         pure obj
 
 errorConfig :: Configuration   -- The object is used when the configuration
@@ -229,30 +230,35 @@ errorConfig =                  --   file is read unsuccessfully.
     , logOutput = "cons"
     }
 
-configuration :: Configuration              -- Try to read configuration file.
-configuration =
-  case getConfiguration "config.json" of
+configuration :: IO Configuration              -- Try to read configuration file.
+configuration = do
+  getConf <- getConfiguration "config.json"
+  pure $ case getConf of
     Right v -> v
     Left e  -> errorConfig
 
-currentMessenger :: T.Text                         -- Selected messenger.
-currentMessenger = messenger configuration
+currentMessenger :: IO T.Text                         -- Selected messenger.
+currentMessenger = messenger <$> configuration                                ------------
 
-myHost :: String
-myHost = case currentMessenger of               -- The host of selected messenger.
-  "TG" -> T.unpack $ hostTG configuration
-  _ -> T.unpack $ hostVK configuration
+myHost :: IO String                                                           --------------
+myHost = do
+  conf <- configuration
+  pure $ case currentMessenger of               -- The host of selected messenger.
+    "TG" -> T.unpack $ hostTG conf
+    _ -> T.unpack $ hostVK conf
 
-myToken :: String                              -- The token of selected messenger.
-myToken = case currentMessenger of
-  "TG" -> T.unpack $ tokenTG configuration
-  _ -> T.unpack $ tokenVK configuration
+myToken :: IO String                              -- The token of selected messenger.
+myToken = do                                                                  ----------
+  conf <- configuration
+  pure $ case currentMessenger of
+    "TG" -> T.unpack $ tokenTG conf
+    _ -> T.unpack $ tokenVK conf
 
 messengerHost :: String
 messengerHost = myHost ++ "/bot"
 
-logLevel :: Priority                             -- Logging level.
-logLevel =  priorityLevel configuration
+logLevel :: IO Priority                             -- Logging level.         ----------
+logLevel =  priorityLevel <$> configuration
 
 type UpdateID = Int
 
@@ -260,9 +266,10 @@ createStringGetUpdates :: Int -> String -- Update request string for Telegram.
 createStringGetUpdates num =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
-stringRequest :: String -> Request -- Request generation.
-stringRequest str =
-  parseRequest_ $
+stringRequest :: String -> IO Request -- Request generation.                   ---------
+stringRequest str = do
+  conf <- configuration
+  pure . parseRequest_ $
     case currentMessenger of
       "TG" -> mconcat ["https://", messengerHost, myToken, str]
       _ ->
@@ -272,11 +279,11 @@ stringRequest str =
           , "/method/messages.send?user_id="
           , str
           , "&peer_id=-"
-          , show $ groupIdVK configuration
+          , show $ groupIdVK conf
           , "&access_token="
           , myToken
           , "&v="
-          , T.unpack $ apiVKVersion configuration
+          , T.unpack $ apiVKVersion conf
           ]
 
 message' :: MessageDate -> Message
