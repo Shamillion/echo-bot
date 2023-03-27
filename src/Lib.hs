@@ -178,8 +178,9 @@ file :: IO Handle                                -- Get Handle for the logfile.
 file  = openFile "../log.log" AppendMode
 
 writingLine :: Priority -> String -> IO () -- Function writes log
-writingLine lvl str =                      --       information down.
-  if (lvl >= logLevel) 
+writingLine lvl str = do                     --       information down.
+  logLevel' <- logLevel
+  if (lvl >= logLevel') 
     then do
       t <- time
       let string = t ++ " UTC   " ++ fun lvl ++ " - " ++ str
@@ -238,26 +239,28 @@ configuration = do
     Left e  -> errorConfig
 
 currentMessenger :: IO T.Text                         -- Selected messenger.
-currentMessenger = messenger <$> configuration                                ------------
+currentMessenger = messenger <$> configuration                                
 
-myHost :: IO String                                                           --------------
+myHost :: IO String                                                           
 myHost = do
   conf <- configuration
-  pure $ case currentMessenger of               -- The host of selected messenger.
+  crntMsngr <- currentMessenger
+  pure $ case crntMsngr of               -- The host of selected messenger.
     "TG" -> T.unpack $ hostTG conf
     _ -> T.unpack $ hostVK conf
 
 myToken :: IO String                              -- The token of selected messenger.
-myToken = do                                                                  ----------
+myToken = do                                                                  
   conf <- configuration
-  pure $ case currentMessenger of
+  crntMsngr <- currentMessenger
+  pure $ case crntMsngr of
     "TG" -> T.unpack $ tokenTG conf
     _ -> T.unpack $ tokenVK conf
 
-messengerHost :: String
-messengerHost = myHost ++ "/bot"
+messengerHost :: IO String                                               
+messengerHost = (++ "/bot") <$> myHost
 
-logLevel :: IO Priority                             -- Logging level.         ----------
+logLevel :: IO Priority                             -- Logging level.         
 logLevel =  priorityLevel <$> configuration
 
 type UpdateID = Int
@@ -266,22 +269,26 @@ createStringGetUpdates :: Int -> String -- Update request string for Telegram.
 createStringGetUpdates num =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
-stringRequest :: String -> IO Request -- Request generation.                   ---------
+stringRequest :: String -> IO Request -- Request generation.                   
 stringRequest str = do
   conf <- configuration
+  crntMsngr <- currentMessenger
+  myHost' <- myHost
+  messengerHost' <- messengerHost 
+  myToken' <- myToken
   pure . parseRequest_ $
-    case currentMessenger of
-      "TG" -> mconcat ["https://", messengerHost, myToken, str]
+    case crntMsngr of
+      "TG" -> mconcat ["https://", messengerHost', myToken', str]
       _ ->
         mconcat
           [ "https://"
-          , myHost
+          , myHost'
           , "/method/messages.send?user_id="
           , str
           , "&peer_id=-"
           , show $ groupIdVK conf
           , "&access_token="
-          , myToken
+          , myToken'
           , "&v="
           , T.unpack $ apiVKVersion conf
           ]
@@ -289,7 +296,7 @@ stringRequest str = do
 message' :: MessageDate -> Message
 message'  = message 
 
-forwardMessagesVk :: Int -> MessageDate -> Request -- Forming a request
+forwardMessagesVk :: Int -> MessageDate -> IO Request -- Forming a request
 forwardMessagesVk randomId' obj =                  --   to return a message
   stringRequest $                                  --      for VK.
     mconcat
@@ -308,16 +315,8 @@ randomId = randomRIO (1, 1000000)              --   for VK requests.
 
 repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) -- Sending a
 repeatMessageVk obj = do              -- request to VK to return a message.
-  r <- randomId
-  let string = stringRequest $
-        mconcat $
-          [ userId
-          , "&random_id="
-          , show r
-          , "&message="
-          , stringToUrl $ T.unpack str ++ add ++ attachment arr userId                    
-          ]
-      userId = T.unpack $ username $ chat $ message' obj
+  r <- randomId 
+  let userId = T.unpack $ username $ chat $ message' obj
       Just str = textM $ message' obj
       Just arr = attachments $ message' obj 
       add = case arr of
@@ -325,7 +324,14 @@ repeatMessageVk obj = do              -- request to VK to return a message.
               _  -> case type_media $ head arr of
                       "sticker" -> ""
                       _ -> "&attachment="           
-   --   string = forwardMessagesVk r obj
+  string <- stringRequest $
+        mconcat $
+          [ userId
+          , "&random_id="
+          , show r
+          , "&message="
+          , stringToUrl $ T.unpack str ++ add ++ attachment arr userId                    
+          ]   
   writingLine DEBUG $ show string
   httpLBS $ string
 
@@ -351,9 +357,19 @@ attachment (x:xs) userId = case x of
             ]
 
 sandRepeats :: MessageDate -> Environment -> IO ()   -- Sending repetitions of
-sandRepeats obj env =                                --    a message.
+sandRepeats obj env = do
+  crntMsngr <- currentMessenger  
+  string <- stringRequest $                    -- Request for Telegram.
+    mconcat
+      [ "/copyMessage?chat_id="
+      , chatId
+      , "&from_chat_id="
+      , chatId
+      , "&message_id="
+      , messageId
+      ]                             --    a message.
   replicateM_ num $                                  -- Repeat the action num times.
-    case currentMessenger of
+    case crntMsngr of
       "TG" -> do
         writingLine DEBUG $ show string
         httpLBS $ string
@@ -362,16 +378,7 @@ sandRepeats obj env =                                --    a message.
   num = getNumRepeats obj env           -- Getting the number of repeats for a current user.
   messageId = show $ message_id $ message' obj
   chatId = show $ Lib.id $ chat $ message' obj
-  string =
-    stringRequest $                    -- Request for Telegram.
-      mconcat
-        [ "/copyMessage?chat_id="
-        , chatId
-        , "&from_chat_id="
-        , chatId
-        , "&message_id="
-        , messageId
-        ]
+
 
 data WorkHandle m a = WorkHandle -- Handle Pattern
   { writingLine' :: Priority -> String -> m a
@@ -408,8 +415,9 @@ ifKeyWord ::                     -- Keyword search and processing.
   StateT Environment m a
 ifKeyWord handler getDataVk obj = do  
   env <- get
+  crntMsngr <- lift $ currentMessenger
   let Just arr = result <$> fun
-      fun = case currentMessenger of
+      fun = case crntMsngr of
         "TG" -> evalState getData env
         _ -> getDataVk $ lastUpdate env
       newObj = Prelude.head arr
@@ -423,7 +431,9 @@ ifKeyWord handler getDataVk obj = do
       wordIsRepeat' handler handler getDataVk obj arr
     Just "/help" -> do
       lift $ writingLine' handler INFO $ "Received /help from " ++ usrName
-      lift $ sendComment' handler obj $ T.unpack $ mconcat $ helpMess configuration
+      lift $ do
+        conf <- configuration
+        sendComment' handler obj $ T.unpack $ mconcat $ helpMess conf
       pureOne handler
     _ -> do
       lift $ sandRepeats' handler obj env
@@ -439,19 +449,21 @@ wordIsRepeat ::
   StateT Environment m a
 wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get  
   env <- get                                   --   updates from VK.
+  crntMsngr <- lift $ currentMessenger
   let Just newArr = result <$> fun
-      fun = case currentMessenger of
+      fun = case crntMsngr of
         "TG" -> evalState getData env
         _ -> getDataVk $ lastUpdate env
   wordIsRepeat' handler handler getDataVk obj newArr
 wordIsRepeat handler getDataVk obj (x : xs) = do
   env <- get
+  crntMsngr <- lift $ currentMessenger
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message' newObj
       usrName = username $ chat $ message' obj
       newUsrName = username $ chat $ message' newObj
-      num = if currentMessenger == "TG" then 1 else 0
+      num = if crntMsngr == "TG" then 1 else 0
   case (usrName == newUsrName) of -- We check that the message came from the user
     True ->                       --  who requested a change in the number of repetitions.      
       case (elem val ["1", "2", "3", "4", "5"]) of
@@ -496,13 +508,14 @@ createKeyboard =
     , one_time_keyboard = True
     }
 
-question :: MessageDate -> Environment -> String
-question obj env =
-  mconcat
+question :: MessageDate -> Environment -> IO String                  
+question obj env = do
+  conf <- configuration
+  pure $ mconcat
     [ "Currently set to "
     , show $ getNumRepeats obj env
     , " repetitions.\n"
-    , T.unpack $ repeatMess configuration
+    , T.unpack $ repeatMess conf
     ]
 
 stringToUrl :: String -> String
@@ -524,16 +537,18 @@ stringToUrl = Prelude.foldl fun ""
 
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
+  let userId = T.unpack $ username $ chat $ message' obj
   randomId' <- randomId
-  let string =
-        stringRequest $
+  crntMsngr <- currentMessenger
+  question' <- question obj env
+  string <- stringRequest $
           mconcat $
-            case currentMessenger of
+            case crntMsngr of
               "TG" ->
                 [ "/sendMessage?chat_id="
                 , show $ Lib.id $ chat $ message' obj
                 , "&text="
-                , stringToUrl $ question obj env
+                , stringToUrl question'
                 , "&reply_markup="
                 , stringToUrl $ LC.unpack $ encode createKeyboard
                 ]
@@ -542,20 +557,21 @@ sendKeyboard obj env = do
                 , "&random_id="
                 , show randomId'
                 , "&message="
-                , stringToUrl $ question obj env
+                , stringToUrl question'
                 , "&keyboard="
                 , stringToUrl $ LC.unpack $ encode keyboardVk
                 ]
-      userId = T.unpack $ username $ chat $ message' obj
   writingLine DEBUG $ show string
   httpLBS string
 
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
 sendComment obj str = do
+  let userId = T.unpack $ username $ chat $ message' obj
   randomId' <- randomId
-  let string = stringRequest $
+  crntMsngr <- currentMessenger
+  string <- stringRequest $
         mconcat $
-          case currentMessenger of
+          case crntMsngr of
             "TG" ->
               [ "/sendMessage?chat_id="
               , show $ Lib.id $ chat $ message' obj
@@ -568,8 +584,7 @@ sendComment obj str = do
               , show randomId'
               , "&message="
               , stringToUrl str
-              ]
-      userId = T.unpack $ username $ chat $ message' obj
+              ]    
   writingLine DEBUG $ show string
   httpLBS string
 
@@ -581,15 +596,19 @@ data Environment = Environment
   , userData   :: Map.Map Username NumRepeats
   }
 
-getNumRepeats :: MessageDate -> Environment -> Int
-getNumRepeats obj env = case (Map.lookup usrName $ userData env) of
-  Nothing -> defaultRepaets configuration
-  Just n -> n
+getNumRepeats :: MessageDate -> Environment -> IO Int
+getNumRepeats obj env = do
+  conf <- configuration
+  pure $ case (Map.lookup usrName $ userData env) of
+    Nothing -> defaultRepaets conf
+    Just n -> n
  where
   usrName = username $ chat $ message' obj
 
-environment :: Environment
-environment =  Environment 0 $ Map.singleton "" (defaultRepaets configuration)
+environment :: IO Environment                                            
+environment = do
+  conf <- configuration
+  pure $ Environment 0 $ Map.singleton "" (defaultRepaets conf)
 
 connection :: Request -> Int -> IO (Response LC.ByteString)  -- Function for connecting 
 connection req num = do                                      --  to the server.
@@ -614,7 +633,7 @@ connection req num = do                                      --  to the server.
 getData :: State Environment (Maybe WholeObject)  -- Function for getting data from
 getData =  do                                     -- Telegram's server.
   env <- get
-  let req = stringRequest $ createStringGetUpdates $ lastUpdate env
+  let req = unsafePerformIO . stringRequest . createStringGetUpdates . lastUpdate $ env
       x = unsafePerformIO $ connection req 0
       code = getResponseStatusCode x
       writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code

@@ -56,35 +56,39 @@ data MessageVK = MessageVK
   }
   deriving (Show, Generic, FromJSON)
 
-wholeObjectVk :: VkData -> WholeObject -- Functions for converting VK's
-wholeObjectVk obj =                    --   data to Telegrams's data.
-  WholeObject 
+wholeObjectVk :: VkData -> IO WholeObject -- Functions for converting VK's   
+wholeObjectVk obj = do                   --   data to Telegrams's data.
+  messageDateVk' <- messageDateVk num
+  pure $ WholeObject 
     { ok = True
-    , result = map (messageDateVk num) (updates obj)
+    , result = map messageDateVk' $ updates obj
     }
  where
   num = read $ T.unpack $ offset obj
 
-messageDateVk :: Int -> Updates -> MessageDate
-messageDateVk num obj =
-  MessageDate
+messageDateVk :: Int -> Updates -> IO MessageDate                            
+messageDateVk num obj = do 
+  messageVk' <- messageVk obj
+  pure $ MessageDate
     { update_id = num
     , Lib.message = messageVk obj
     }
 
-messageVk :: Updates -> Message
-messageVk obj =
-  Message
+messageVk :: Updates -> IO Message                                      
+messageVk obj = do
+  chatVk' <- chatVk obj
+  pure $ Message
     { message_id = Vk.id $ Vk.message $ object' obj
-    , chat = chatVk obj
+    , chat = chatVk'
     , textM = Just $ Vk.text $ Vk.message $ object' obj
     , Lib.attachments = Just $ Vk.attachments $ Vk.message $ object' obj
     }
 
-chatVk :: Updates -> Chat
-chatVk obj =
-  Chat
-    { Lib.id = groupIdVK configuration
+chatVk :: Updates -> IO Chat                                               
+chatVk obj = do
+  conf <- configuration
+  pure $ Chat
+    { Lib.id = groupIdVK conf
     , username = T.pack $ show $ from_id $ Vk.message $ object' obj
     }
  
@@ -103,25 +107,28 @@ getVkData s k t = do  -- Function for receiving data from
       writingLine DEBUG $ show v
       case updates v of
         [] -> getVkData s k $ offset v
-        _ -> pure $ pure $ wholeObjectVk v
+        _ -> pure <$> wholeObjectVk v
  where
   req =
     parseRequest_ $
       T.unpack $
         mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
         
-getLongPollServerRequest :: Request
-getLongPollServerRequest =
-  parseRequest_ $
+getLongPollServerRequest :: IO Request                                    -------------
+getLongPollServerRequest = do
+  conf <- configuration
+  myHost' <- myHost
+  myToken' <- myToken
+  pure . parseRequest_ $
     mconcat
       [ "https://"
-      , myHost
+      , myHost'
       , "/method/groups.getLongPollServer?group_id="
-      , show $ groupIdVK configuration
+      , show $ groupIdVK conf
       , "&access_token="
-      , myToken
+      , myToken'
       , "&v="
-      , T.unpack $ apiVKVersion configuration
+      , T.unpack $ apiVKVersion conf
       ]
 
 botsLongPollAPI :: StateT Environment IO () -- Main program cycle for VK.

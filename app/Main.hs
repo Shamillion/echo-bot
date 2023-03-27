@@ -6,14 +6,15 @@ import Vk
          
 
 main :: IO ()
-main = do  
-  case messenger configuration of
+main = do 
+  conf <- configuration 
+  case messenger conf of
     "Error" -> print "Check out config.json"
     "TG"    -> do
       writingLine INFO "Started Telegram echobot."
-      newEnv <- execStateT firstUpdateIDSession environment 
+      newEnv <- environment >>= execStateT firstUpdateIDSession  
       evalStateT endlessCycle newEnv
     _       -> do
       writingLine INFO "Started VK echobot."
-      evalStateT botsLongPollAPI environment
+      environment >>= evalStateT botsLongPollAPI 
       
