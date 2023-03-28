@@ -367,15 +367,15 @@ sandRepeats obj env = do
       , chatId
       , "&message_id="
       , messageId
-      ]                             --    a message.
+      ] 
+  num <- getNumRepeats obj env           -- Getting the number of repeats for a current user.                                --    a message.
   replicateM_ num $                                  -- Repeat the action num times.
     case crntMsngr of
       "TG" -> do
         writingLine DEBUG $ show string
         httpLBS $ string
       _ -> repeatMessageVk obj
- where
-  num = getNumRepeats obj env           -- Getting the number of repeats for a current user.
+ where   
   messageId = show $ message_id $ message' obj
   chatId = show $ Lib.id $ chat $ message' obj
 
@@ -391,6 +391,7 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
       MessageDate ->
       [MessageDate] ->
       StateT Environment m a
+  , currentMessengerH :: m a    
   , pureOne :: StateT Environment m a
   , pureTwo :: StateT Environment m a
   }
@@ -403,6 +404,7 @@ handler =
     , sendComment' = sendComment
     , sandRepeats' = sandRepeats
     , wordIsRepeat' = wordIsRepeat
+    , currentMessengerH = currentMessenger
     , pureOne = pure ()
     , pureTwo = pure ()
     }
@@ -415,7 +417,7 @@ ifKeyWord ::                     -- Keyword search and processing.
   StateT Environment m a
 ifKeyWord handler getDataVk obj = do  
   env <- get
-  crntMsngr <- lift $ currentMessenger
+  crntMsngr <- lift $ currentMessengerH
   let Just arr = result <$> fun
       fun = case crntMsngr of
         "TG" -> evalState getData env
@@ -449,7 +451,7 @@ wordIsRepeat ::
   StateT Environment m a
 wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get  
   env <- get                                   --   updates from VK.
-  crntMsngr <- lift $ currentMessenger
+  crntMsngr <- lift $ currentMessengerH
   let Just newArr = result <$> fun
       fun = case crntMsngr of
         "TG" -> evalState getData env
@@ -457,7 +459,7 @@ wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get
   wordIsRepeat' handler handler getDataVk obj newArr
 wordIsRepeat handler getDataVk obj (x : xs) = do
   env <- get
-  crntMsngr <- lift $ currentMessenger
+  crntMsngr <- lift $ currentMessengerH
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -511,9 +513,10 @@ createKeyboard =
 question :: MessageDate -> Environment -> IO String                  
 question obj env = do
   conf <- configuration
+  num <- getNumRepeats obj env
   pure $ mconcat
     [ "Currently set to "
-    , show $ getNumRepeats obj env
+    , show num 
     , " repetitions.\n"
     , T.unpack $ repeatMess conf
     ]
