@@ -17,7 +17,6 @@ import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import System.Random (Random (randomRIO))
 
 data Configuration = Configuration -- Data type for the configuration file.
@@ -391,7 +390,9 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
       MessageDate ->
       [MessageDate] ->
       StateT Environment m a
-  , currentMessengerH :: m a    
+  , currentMessengerH :: m T.Text 
+  , configurationH :: m Configuration 
+  , getDataH :: StateT Environment m (Maybe WholeObject)  
   , pureOne :: StateT Environment m a
   , pureTwo :: StateT Environment m a
   }
@@ -405,6 +406,8 @@ handler =
     , sandRepeats' = sandRepeats
     , wordIsRepeat' = wordIsRepeat
     , currentMessengerH = currentMessenger
+    , configurationH = configuration
+    , getDataH = getData
     , pureOne = pure ()
     , pureTwo = pure ()
     }
@@ -417,11 +420,11 @@ ifKeyWord ::                     -- Keyword search and processing.
   StateT Environment m a
 ifKeyWord handler getDataVk obj = do  
   env <- get
-  crntMsngr <- lift $ currentMessengerH
-  let Just arr = result <$> fun
-      fun = case crntMsngr of
-        "TG" -> evalState getData env
-        _ -> getDataVk $ lastUpdate env
+  crntMsngr <- lift $ currentMessengerH handler
+  fun <- lift $ case crntMsngr of
+    "TG" -> evalStateT (getDataH handler) env
+    _ -> pure . getDataVk . lastUpdate $ env
+  let Just arr = result <$> fun   
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -434,7 +437,7 @@ ifKeyWord handler getDataVk obj = do
     Just "/help" -> do
       lift $ writingLine' handler INFO $ "Received /help from " ++ usrName
       lift $ do
-        conf <- configuration
+        conf <- configurationH handler
         sendComment' handler obj $ T.unpack $ mconcat $ helpMess conf
       pureOne handler
     _ -> do
@@ -451,15 +454,15 @@ wordIsRepeat ::
   StateT Environment m a
 wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get  
   env <- get                                   --   updates from VK.
-  crntMsngr <- lift $ currentMessengerH
-  let Just newArr = result <$> fun
-      fun = case crntMsngr of
-        "TG" -> evalState getData env
-        _ -> getDataVk $ lastUpdate env
+  crntMsngr <- lift $ currentMessengerH handler  
+  fun <- lift $ case crntMsngr of
+    "TG" -> evalStateT (getDataH handler) env
+    _ -> pure . getDataVk . lastUpdate $ env
+  let Just newArr = result <$> fun      
   wordIsRepeat' handler handler getDataVk obj newArr
 wordIsRepeat handler getDataVk obj (x : xs) = do
   env <- get
-  crntMsngr <- lift $ currentMessengerH
+  crntMsngr <- lift $ currentMessengerH handler
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -633,15 +636,15 @@ connection req num = do                                      --  to the server.
           print "Connection restored"
         pure v
 
-getData :: State Environment (Maybe WholeObject)  -- Function for getting data from
+getData :: StateT Environment IO (Maybe WholeObject)  -- Function for getting data from
 getData =  do                                     -- Telegram's server.
   env <- get
-  let req = unsafePerformIO . stringRequest . createStringGetUpdates . lastUpdate $ env
-      x = unsafePerformIO $ connection req 0
-      code = getResponseStatusCode x
-      writing = unsafePerformIO $ writingLine ERROR $ "statusCode" ++ show code
+  req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
+  x <- lift $ connection req 0
+  let code = getResponseStatusCode x
+  lift . writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
-    False -> pure $ unsafePerformIO $ do
+    False -> lift $ do
       writingLine ERROR $ "statusCode " ++ show code
       pure Nothing
     _ -> do
@@ -655,7 +658,7 @@ getData =  do                                     -- Telegram's server.
 firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
 firstUpdateIDSession =  do                       --   for the first time. (Excludes 
   env <- get                                     --   processing of messages sent 
-  let (obj, newEnv) = runState getData env       --   before the program is started).         
+  (obj, newEnv) <- lift $ runStateT getData env       --   before the program is started).         
   case obj of
     Nothing -> pure ()
     _ -> do
@@ -669,8 +672,8 @@ firstUpdateIDSession =  do                       --   for the first time. (Exclu
 endlessCycle :: StateT Environment IO ()  -- Main program cycle for Telegram.
 endlessCycle =  do
   env <- get
-  let obj = evalState getData env
-      nothing num = Nothing
+  obj <- lift $ evalStateT getData env
+  let nothing num = Nothing
   case obj of
     Nothing -> lift $ writingLine ERROR "Broken request!"
     _ -> do

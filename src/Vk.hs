@@ -58,10 +58,10 @@ data MessageVK = MessageVK
 
 wholeObjectVk :: VkData -> IO WholeObject -- Functions for converting VK's   
 wholeObjectVk obj = do                   --   data to Telegrams's data.
-  messageDateVk' <- messageDateVk num
+  ls <- mapM (messageDateVk num) $ updates obj
   pure $ WholeObject 
     { ok = True
-    , result = map messageDateVk' $ updates obj
+    , result = ls
     }
  where
   num = read $ T.unpack $ offset obj
@@ -71,7 +71,7 @@ messageDateVk num obj = do
   messageVk' <- messageVk obj
   pure $ MessageDate
     { update_id = num
-    , Lib.message = messageVk obj
+    , Lib.message = messageVk' 
     }
 
 messageVk :: Updates -> IO Message                                      
@@ -134,7 +134,9 @@ getLongPollServerRequest = do
 botsLongPollAPI :: StateT Environment IO () -- Main program cycle for VK.
 botsLongPollAPI = do
   envir <- get
-  x <- lift $ connection getLongPollServerRequest 0
+  x <- lift $ do
+    getLongPollServerRequest' <- getLongPollServerRequest
+    connection getLongPollServerRequest' 0
   let code = getResponseStatusCode x
   writing <- lift $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
