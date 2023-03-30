@@ -386,7 +386,7 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
   , sandRepeats' :: MessageDate -> Environment -> m a
   , wordIsRepeat' ::
       WorkHandle m a ->
-      (Int -> Maybe WholeObject) ->
+      (Int -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m a
@@ -415,7 +415,7 @@ handler =
 ifKeyWord ::                     -- Keyword search and processing.
   Monad m =>
   WorkHandle m a ->
-  (Int -> Maybe WholeObject) ->
+  (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
 ifKeyWord handler getDataVk obj = do  
@@ -423,7 +423,7 @@ ifKeyWord handler getDataVk obj = do
   crntMsngr <- lift $ currentMessengerH handler
   fun <- lift $ case crntMsngr of
     "TG" -> evalStateT (getDataH handler) env
-    _ -> pure . getDataVk . lastUpdate $ env
+    _ -> getDataVk . lastUpdate $ env
   let Just arr = result <$> fun   
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
@@ -448,7 +448,7 @@ ifKeyWord handler getDataVk obj = do
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a ->
-  (Int -> Maybe WholeObject) ->
+  (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
@@ -457,7 +457,7 @@ wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get
   crntMsngr <- lift $ currentMessengerH handler  
   fun <- lift $ case crntMsngr of
     "TG" -> evalStateT (getDataH handler) env
-    _ -> pure . getDataVk . lastUpdate $ env
+    _ -> getDataVk . lastUpdate $ env
   let Just newArr = result <$> fun      
   wordIsRepeat' handler handler getDataVk obj newArr
 wordIsRepeat handler getDataVk obj (x : xs) = do
@@ -673,7 +673,7 @@ endlessCycle :: StateT Environment IO ()  -- Main program cycle for Telegram.
 endlessCycle =  do
   env <- get
   obj <- lift $ evalStateT getData env
-  let nothing num = Nothing
+  let nothing num = pure Nothing
   case obj of
     Nothing -> lift $ writingLine ERROR "Broken request!"
     _ -> do

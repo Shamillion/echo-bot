@@ -7,7 +7,6 @@ import Data.Aeson
 import qualified Data.Text as T 
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
-import System.IO.Unsafe (unsafePerformIO)
 import Lib
 
 data VkKeyServerTs = VkKeyServerTs       -- Data types for VK answer on    
@@ -158,7 +157,7 @@ botsLongPollAPI = do
       Nothing -> botsLongPollAPI
       Just w -> do
         let arr = result w
-            getVkData' lastUpdId = unsafePerformIO . getVkData s k $ T.pack $ show lastUpdId
+            getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
         put $ Environment (update_id $ last arr) (userData env)
         lift $ print arr                       -- Delete
         mapM_ (ifKeyWord handler getVkData') arr                      ----------------
