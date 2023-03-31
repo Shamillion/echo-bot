@@ -15,7 +15,7 @@ import Test.QuickCheck
 handlerForTestIfKeyWord :: WorkHandle Identity String -- Handle for tests of echobot
 handlerForTestIfKeyWord =
   WorkHandle
-    { writingLine' = \x y -> pure "nothing"
+    { writingLineH = \x y -> pure "nothing"
     , sendKeyboard' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
     , sendComment' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
     , sandRepeats' = \x y -> pure "nothing"
@@ -27,7 +27,7 @@ handlerForTestIfKeyWord =
 handlerForTestWordIsRepeat :: WorkHandle Identity String -- Handle for tests of echobot
 handlerForTestWordIsRepeat =
   WorkHandle
-    { writingLine' = \x y -> pure "nothing"
+    { writingLineH = \x y -> pure "nothing"
     , sendKeyboard' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
     , sendComment' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
     , sandRepeats' = \x y -> pure "nothing"

@@ -380,7 +380,7 @@ sandRepeats obj env = do
 
 
 data WorkHandle m a = WorkHandle -- Handle Pattern
-  { writingLine' :: Priority -> String -> m a
+  { writingLineH :: Priority -> String -> m a
   , sendKeyboard' :: MessageDate -> Environment -> m (Response LC.ByteString)
   , sendComment' :: MessageDate -> String -> m (Response LC.ByteString)
   , sandRepeats' :: MessageDate -> Environment -> m a
@@ -400,7 +400,7 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
 handler :: WorkHandle IO () -- Handle for work of echobot
 handler =
   WorkHandle
-    { writingLine' = writingLine
+    { writingLineH = writingLine
     , sendKeyboard' = sendKeyboard
     , sendComment' = sendComment
     , sandRepeats' = sandRepeats
@@ -418,11 +418,11 @@ ifKeyWord ::                     -- Keyword search and processing.
   (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
-ifKeyWord handler getDataVk obj = do  
+ifKeyWord WorkHandle {..} getDataVk obj = do  
   env <- get
-  crntMsngr <- lift $ currentMessengerH handler
+  crntMsngr <- lift $ currentMessengerH 
   fun <- lift $ case crntMsngr of
-    "TG" -> evalStateT (getDataH handler) env
+    "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
   let Just arr = result <$> fun   
       newObj = Prelude.head arr
@@ -431,18 +431,18 @@ ifKeyWord handler getDataVk obj = do
       usrName = T.unpack $ username $ chat $ message' obj
   case (textM $ message' obj) of
     Just "/repeat" -> do
-      lift $ writingLine' handler INFO $ "Received /repeat from " ++ usrName
-      lift $ sendKeyboard' handler obj env
-      wordIsRepeat' handler handler getDataVk obj arr
+      lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
+      lift $ sendKeyboard' obj env
+      wordIsRepeat WorkHandle {..} getDataVk obj arr
     Just "/help" -> do
-      lift $ writingLine' handler INFO $ "Received /help from " ++ usrName
+      lift $ writingLineH INFO $ "Received /help from " ++ usrName
       lift $ do
-        conf <- configurationH handler
-        sendComment' handler obj $ T.unpack $ mconcat $ helpMess conf
-      pureOne handler
+        conf <- configurationH 
+        sendComment' obj $ T.unpack $ mconcat $ helpMess conf
+      pureOne 
     _ -> do
-      lift $ sandRepeats' handler obj env
-      pureTwo handler
+      lift $ sandRepeats' obj env
+      pureTwo 
 
                                           -- Changing the number of repetitions.
 wordIsRepeat ::
@@ -452,17 +452,17 @@ wordIsRepeat ::
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
-wordIsRepeat handler getDataVk obj [] = do     -- getDataVk needed to get  
+wordIsRepeat WorkHandle {..} getDataVk obj [] = do     -- getDataVk needed to get  
   env <- get                                   --   updates from VK.
-  crntMsngr <- lift $ currentMessengerH handler  
+  crntMsngr <- lift $ currentMessengerH   
   fun <- lift $ case crntMsngr of
-    "TG" -> evalStateT (getDataH handler) env
+    "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
   let Just newArr = result <$> fun      
-  wordIsRepeat' handler handler getDataVk obj newArr
-wordIsRepeat handler getDataVk obj (x : xs) = do
+  wordIsRepeat WorkHandle {..} getDataVk obj newArr
+wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
-  crntMsngr <- lift $ currentMessengerH handler
+  crntMsngr <- lift $ currentMessengerH 
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message' newObj
@@ -474,12 +474,12 @@ wordIsRepeat handler getDataVk obj (x : xs) = do
       case (elem val ["1", "2", "3", "4", "5"]) of
         True -> do
           lift $
-            sendComment' handler obj $
+            sendComment' obj $
               "Done! Set up "
                 ++ T.unpack val
                 ++ " repeat(s)."
           lift $
-            writingLine' handler INFO $
+            writingLineH INFO $
               "Set up "
                 ++ T.unpack val
                 ++ " repeat(s) to "
@@ -492,15 +492,15 @@ wordIsRepeat handler getDataVk obj (x : xs) = do
                   (read $ T.unpack val)
                   (userData env)
               )
-          pureOne handler
+          pureOne 
         _ -> do
-          lift $ sandRepeats' handler newObj newEnv
+          lift $ sandRepeats' newObj newEnv
           put newEnv
-          pureTwo handler
+          pureTwo 
     _ -> do
-      ifKeyWord handler getDataVk newObj
+      ifKeyWord WorkHandle {..} getDataVk newObj
       put newEnv
-      wordIsRepeat' handler handler getDataVk obj xs
+      wordIsRepeat WorkHandle {..} getDataVk obj xs
 
 toKeyboardButton :: Int -> KeyboardButton
 toKeyboardButton num = KeyboardButton{text = T.pack $ show num}
