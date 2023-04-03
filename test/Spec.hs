@@ -12,14 +12,17 @@ import Test.QuickCheck
 
 -- import Control.Exception (evaluate)
 
+environmentT :: Environment                                            
+environmentT = Environment 0 $ Map.singleton "" 3
+
 handlerForTestIfKeyWord :: WorkHandle Identity String -- Handle for tests of echobot
 handlerForTestIfKeyWord =
   WorkHandle
     { writingLineH = \x y -> pure "nothing"
-    , sendKeyboard' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
-    , sendComment' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
-    , sandRepeats' = \x y -> pure "nothing"
-    , wordIsRepeat' = \w x y z -> pure "/repeat"
+--    , sendKeyboardH = \x y -> p ""
+ --   , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
+    , sandRepeatsH = \x y -> pure "nothing"
+    , wordIsRepeatH = \w x y z -> pure "/repeat"
     , pureOne = pure "/help"
     , pureTwo = pure "anything"
     }
@@ -28,16 +31,16 @@ handlerForTestWordIsRepeat :: WorkHandle Identity String -- Handle for tests of 
 handlerForTestWordIsRepeat =
   WorkHandle
     { writingLineH = \x y -> pure "nothing"
-    , sendKeyboard' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
-    , sendComment' = \x y -> pure $ unsafePerformIO $ httpLBS $ parseRequest_ ""
-    , sandRepeats' = \x y -> pure "nothing"
-    , wordIsRepeat' = \w x y z -> pure "Another user || empty array"
+--    , sendKeyboardH = \x y -> httpLBS $ parseRequest_ ""
+--    , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
+    , sandRepeatsH = \x y -> pure "nothing"
+    , wordIsRepeatH = \w x y z -> pure "Another user || empty array"
     , pureOne = pure "Number from 1 to 5"
     , pureTwo = pure "Not number from 1 to 5"
     }
 
-nothing :: Int -> Maybe WholeObject
-nothing num = Nothing
+nothing :: Int -> Identity (Maybe WholeObject)
+nothing num = pure Nothing
 
 messageDate :: T.Text -> T.Text -> MessageDate
 messageDate usr txt =
@@ -52,6 +55,7 @@ messageDate usr txt =
                 , username = usr
                 }
           , textM = Just txt
+          , attachments = Nothing
           }
     }
 
@@ -61,7 +65,7 @@ messageDate usr txt =
 testingFunctionIfKeyWord :: T.Text -> String
 testingFunctionIfKeyWord txt =
   runIdentity $
-    evalStateT (ifKeyWord handlerForTestIfKeyWord nothing $ messageDate "testUsr" txt) environment
+    evalStateT (ifKeyWord handlerForTestIfKeyWord nothing $ messageDate "testUsr" txt) environmentT
 
 testingFunctionWordIsRepeat :: T.Text -> T.Text -> T.Text -> String
 testingFunctionWordIsRepeat usr1 usr2 txt =
@@ -73,7 +77,7 @@ testingFunctionWordIsRepeat usr1 usr2 txt =
           (messageDate usr1 txt)
           [messageDate usr2 txt]
       )
-      environment
+      environmentT
 
 testingFunctionWordIsRepeat' :: T.Text -> T.Text -> T.Text -> Maybe NumRepeats
 testingFunctionWordIsRepeat' usr1 usr2 txt =
@@ -87,7 +91,7 @@ testingFunctionWordIsRepeat' usr1 usr2 txt =
               (messageDate usr1 txt)
               [messageDate usr2 txt]
           )
-          environment
+          environmentT
 
 testingFunctionWordIsRepeatWithEmptyArr :: T.Text -> T.Text -> String
 testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
@@ -99,7 +103,7 @@ testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
           (messageDate usr1 txt)
           []
       )
-      environment
+      environmentT
 
 testsFunctionIfKeyWord = do
   it "catch the /help" $

@@ -381,10 +381,10 @@ sandRepeats obj env = do
 
 data WorkHandle m a = WorkHandle -- Handle Pattern
   { writingLineH :: Priority -> String -> m a
-  , sendKeyboard' :: MessageDate -> Environment -> m (Response LC.ByteString)
-  , sendComment' :: MessageDate -> String -> m (Response LC.ByteString)
-  , sandRepeats' :: MessageDate -> Environment -> m a
-  , wordIsRepeat' ::
+  , sendKeyboardH :: MessageDate -> Environment -> m (Response LC.ByteString)
+  , sendCommentH :: MessageDate -> String -> m (Response LC.ByteString)
+  , sandRepeatsH :: MessageDate -> Environment -> m a
+  , wordIsRepeatH ::
       WorkHandle m a ->
       (Int -> m (Maybe WholeObject)) ->
       MessageDate ->
@@ -401,10 +401,10 @@ handler :: WorkHandle IO () -- Handle for work of echobot
 handler =
   WorkHandle
     { writingLineH = writingLine
-    , sendKeyboard' = sendKeyboard
-    , sendComment' = sendComment
-    , sandRepeats' = sandRepeats
-    , wordIsRepeat' = wordIsRepeat
+    , sendKeyboardH = sendKeyboard
+    , sendCommentH = sendComment
+    , sandRepeatsH = sandRepeats
+    , wordIsRepeatH = wordIsRepeat
     , currentMessengerH = currentMessenger
     , configurationH = configuration
     , getDataH = getData
@@ -432,16 +432,16 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
   case (textM $ message' obj) of
     Just "/repeat" -> do
       lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
-      lift $ sendKeyboard' obj env
-      wordIsRepeat WorkHandle {..} getDataVk obj arr
+      lift $ sendKeyboardH obj env
+      wordIsRepeatH WorkHandle {..} getDataVk obj arr
     Just "/help" -> do
       lift $ writingLineH INFO $ "Received /help from " ++ usrName
       lift $ do
         conf <- configurationH 
-        sendComment' obj $ T.unpack $ mconcat $ helpMess conf
+        sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
       pureOne 
     _ -> do
-      lift $ sandRepeats' obj env
+      lift $ sandRepeatsH obj env
       pureTwo 
 
                                           -- Changing the number of repetitions.
@@ -459,7 +459,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do     -- getDataVk needed to ge
     "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
   let Just newArr = result <$> fun      
-  wordIsRepeat WorkHandle {..} getDataVk obj newArr
+  wordIsRepeatH WorkHandle {..} getDataVk obj newArr
 wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
   crntMsngr <- lift $ currentMessengerH 
@@ -474,7 +474,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       case (elem val ["1", "2", "3", "4", "5"]) of
         True -> do
           lift $
-            sendComment' obj $
+            sendCommentH obj $
               "Done! Set up "
                 ++ T.unpack val
                 ++ " repeat(s)."
@@ -494,13 +494,13 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
               )
           pureOne 
         _ -> do
-          lift $ sandRepeats' newObj newEnv
+          lift $ sandRepeatsH newObj newEnv
           put newEnv
           pureTwo 
     _ -> do
       ifKeyWord WorkHandle {..} getDataVk newObj
       put newEnv
-      wordIsRepeat WorkHandle {..} getDataVk obj xs
+      wordIsRepeatH WorkHandle {..} getDataVk obj xs
 
 toKeyboardButton :: Int -> KeyboardButton
 toKeyboardButton num = KeyboardButton{text = T.pack $ show num}
@@ -642,7 +642,6 @@ getData =  do                                     -- Telegram's server.
   req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
   x <- lift $ connection req 0
   let code = getResponseStatusCode x
-  lift . writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
     False -> lift $ do
       writingLine ERROR $ "statusCode " ++ show code
