@@ -19,7 +19,7 @@ handlerForTestIfKeyWord :: WorkHandle Identity String -- Handle for tests of ech
 handlerForTestIfKeyWord =
   WorkHandle
     { writingLineH = \x y -> pure "nothing"
---    , sendKeyboardH = \x y -> p ""
+ --   , sendKeyboardH = \x y -> pure property 
  --   , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
     , sandRepeatsH = \x y -> pure "nothing"
     , wordIsRepeatH = \w x y z -> pure "/repeat"
@@ -31,7 +31,7 @@ handlerForTestWordIsRepeat :: WorkHandle Identity String -- Handle for tests of 
 handlerForTestWordIsRepeat =
   WorkHandle
     { writingLineH = \x y -> pure "nothing"
---    , sendKeyboardH = \x y -> httpLBS $ parseRequest_ ""
+ --   , sendKeyboardH = \x y -> --httpLBS $ parseRequest_ ""
 --    , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
     , sandRepeatsH = \x y -> pure "nothing"
     , wordIsRepeatH = \w x y z -> pure "Another user || empty array"

@@ -182,7 +182,7 @@ writingLine lvl str = do                     --       information down.
   if (lvl >= logLevel') 
     then do
       t <- time
-      let string = t ++ " UTC   " ++ fun lvl ++ " - " ++ str
+      let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
       out <- logOutput <$> configuration
       case out of
         "file" -> do
@@ -192,11 +192,11 @@ writingLine lvl str = do                     --       information down.
         _ -> print string
     else pure ()
  where  
-  fun val = case val of
+  showLevel val = case val of
     DEBUG -> "DEBUG  "
     INFO -> "INFO   "
     WARNING -> "WARNING"
-    ERROR -> "ERROR  "
+    ERROR -> "ERROR  "     
 
 getConfiguration :: String -> IO (Either String Configuration)
 getConfiguration fileName = do                   --  information from file.
@@ -235,7 +235,7 @@ configuration = do
   getConf <- getConfiguration "config.json"
   pure $ case getConf of
     Right v -> v
-    Left e  -> errorConfig
+    _ -> errorConfig
 
 currentMessenger :: IO T.Text                         -- Selected messenger.
 currentMessenger = messenger <$> configuration                                
@@ -261,9 +261,7 @@ messengerHost = (++ "/bot") <$> myHost
 
 logLevel :: IO Priority                             -- Logging level.         
 logLevel =  priorityLevel <$> configuration
-
-type UpdateID = Int
-
+ 
 createStringGetUpdates :: Int -> String -- Update request string for Telegram.
 createStringGetUpdates num =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
@@ -292,8 +290,8 @@ stringRequest str = do
           , T.unpack $ apiVKVersion conf
           ]
 
-message' :: MessageDate -> Message
-message'  = message 
+--message' :: MessageDate -> Message
+--message'  = message 
 
 forwardMessagesVk :: Int -> MessageDate -> IO Request -- Forming a request
 forwardMessagesVk randomId' obj =                  --   to return a message
@@ -306,8 +304,8 @@ forwardMessagesVk randomId' obj =                  --   to return a message
       , messId
       ]
  where
-  userId = T.unpack $ username $ chat $ message' obj
-  messId = show $ message_id $ message' obj
+  userId = T.unpack $ username $ chat $ message obj
+  messId = show $ message_id $ message obj
 
 randomId :: IO Int                             -- Generating random numbers 
 randomId = randomRIO (1, 1000000)              --   for VK requests. 
@@ -315,9 +313,9 @@ randomId = randomRIO (1, 1000000)              --   for VK requests.
 repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) -- Sending a
 repeatMessageVk obj = do              -- request to VK to return a message.
   r <- randomId 
-  let userId = T.unpack $ username $ chat $ message' obj
-      Just str = textM $ message' obj
-      Just arr = attachments $ message' obj 
+  let userId = T.unpack $ username $ chat $ message obj
+      Just str = textM $ message obj
+      Just arr = attachments $ message obj 
       add = case arr of
               [] -> ""
               _  -> case type_media $ head arr of
@@ -375,8 +373,8 @@ sandRepeats obj env = do
         httpLBS $ string
       _ -> repeatMessageVk obj
  where   
-  messageId = show $ message_id $ message' obj
-  chatId = show $ Lib.id $ chat $ message' obj
+  messageId = show $ message_id $ message obj
+  chatId = show $ Lib.id $ chat $ message obj
 
 
 data WorkHandle m a = WorkHandle -- Handle Pattern
@@ -427,9 +425,9 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
   let Just arr = result <$> fun   
       newObj = Prelude.head arr
       newEnv = Environment (1 + update_id newObj) (userData env)
-      Just val = textM $ message' newObj
-      usrName = T.unpack $ username $ chat $ message' obj
-  case (textM $ message' obj) of
+      Just val = textM $ message newObj
+      usrName = T.unpack $ username $ chat $ message obj
+  case (textM $ message obj) of
     Just "/repeat" -> do
       lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
       lift $ sendKeyboardH obj env
@@ -465,9 +463,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   crntMsngr <- lift $ currentMessengerH 
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
-      Just val = textM $ message' newObj
-      usrName = username $ chat $ message' obj
-      newUsrName = username $ chat $ message' newObj
+      Just val = textM $ message newObj
+      usrName = username $ chat $ message obj
+      newUsrName = username $ chat $ message newObj
       num = if crntMsngr == "TG" then 1 else 0
   case (usrName == newUsrName) of -- We check that the message came from the user
     True ->                       --  who requested a change in the number of repetitions.      
@@ -543,7 +541,7 @@ stringToUrl = Prelude.foldl fun ""
 
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
-  let userId = T.unpack $ username $ chat $ message' obj
+  let userId = T.unpack $ username $ chat $ message obj
   randomId' <- randomId
   crntMsngr <- currentMessenger
   question' <- question obj env
@@ -552,7 +550,7 @@ sendKeyboard obj env = do
             case crntMsngr of
               "TG" ->
                 [ "/sendMessage?chat_id="
-                , show $ Lib.id $ chat $ message' obj
+                , show $ Lib.id $ chat $ message obj
                 , "&text="
                 , stringToUrl question'
                 , "&reply_markup="
@@ -572,7 +570,7 @@ sendKeyboard obj env = do
 
 sendComment :: MessageDate -> String -> IO (Response LC.ByteString)
 sendComment obj str = do
-  let userId = T.unpack $ username $ chat $ message' obj
+  let userId = T.unpack $ username $ chat $ message obj
   randomId' <- randomId
   crntMsngr <- currentMessenger
   string <- stringRequest $
@@ -580,7 +578,7 @@ sendComment obj str = do
           case crntMsngr of
             "TG" ->
               [ "/sendMessage?chat_id="
-              , show $ Lib.id $ chat $ message' obj
+              , show $ Lib.id $ chat $ message obj
               , "&text="
               , stringToUrl str
               ]
@@ -594,7 +592,8 @@ sendComment obj str = do
   writingLine DEBUG $ show string
   httpLBS string
 
-type Username   = T.Text
+type UpdateID = Int
+type Username = T.Text
 type NumRepeats = Int
 
 data Environment = Environment
@@ -609,7 +608,7 @@ getNumRepeats obj env = do
     Nothing -> defaultRepaets conf
     Just n -> n
  where
-  usrName = username $ chat $ message' obj
+  usrName = username $ chat $ message obj
 
 environment :: IO Environment                                            
 environment = do
@@ -677,7 +676,7 @@ endlessCycle =  do
     Nothing -> lift $ writingLine ERROR "Broken request!"
     _ -> do
       let Just arr = result <$> obj
-      put $ Environment (1 + (update_id $ last arr)) (userData env)
+      put $ Environment (1 + (update_id $ last arr)) (userData env)         -------------
       newEnv <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle
