@@ -51,7 +51,7 @@ messageDate usr txt =
           { message_id = 202
           , chat =
               Chat
-                { Lib.id = 303
+                { chat_id = 303
                 , username = usr
                 }
           , textM = Just txt

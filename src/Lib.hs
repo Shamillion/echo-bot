@@ -19,6 +19,8 @@ import Network.HTTP.Simple
 import System.IO
 import System.Random (Random (randomRIO))
 
+import System.IO.Unsafe (unsafePerformIO)
+
 data Configuration = Configuration -- Data type for the configuration file.
   { messenger :: T.Text
   , hostTG :: T.Text
@@ -36,10 +38,16 @@ data Configuration = Configuration -- Data type for the configuration file.
   deriving (Show, Generic, FromJSON)
 
 data Chat = Chat                   -- Data types for the Telegram answer.
-  { id :: Int
+  { chat_id :: Int
   , username :: T.Text
   }
-  deriving (Show, Generic, FromJSON)
+  deriving Show
+  
+instance FromJSON Chat where
+  parseJSON (Object v) = do
+    chat_id <- v .: "id"
+    username <- v .: "username"
+    pure $ Chat chat_id username  
 
 data Message = Message
   { message_id :: Int
@@ -121,7 +129,7 @@ instance FromJSON Media where
         ]
 
 data ActionVk = ActionVk -- Data types for the VK keyboard.
-  { type' :: T.Text
+  { type' :: T.Text                                                -----------------
   , label :: T.Text
   }
   deriving Show
@@ -374,7 +382,7 @@ sandRepeats obj env = do
       _ -> repeatMessageVk obj
  where   
   messageId = show $ message_id $ message obj
-  chatId = show $ Lib.id $ chat $ message obj
+  chatId = show $ chat_id $ chat $ message obj
 
 
 data WorkHandle m a = WorkHandle -- Handle Pattern
@@ -393,6 +401,7 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
   , getDataH :: StateT Environment m (Maybe WholeObject)  
   , pureOne :: StateT Environment m a
   , pureTwo :: StateT Environment m a
+  , print' ::  String -> m ()
   }
 
 handler :: WorkHandle IO () -- Handle for work of echobot
@@ -408,6 +417,7 @@ handler =
     , getDataH = getData
     , pureOne = pure ()
     , pureTwo = pure ()
+    , print' = print
     }
 
 ifKeyWord ::                     -- Keyword search and processing.
@@ -416,14 +426,15 @@ ifKeyWord ::                     -- Keyword search and processing.
   (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
-ifKeyWord WorkHandle {..} getDataVk obj = do  
+ifKeyWord WorkHandle {..} getDataVk obj = do   
   env <- get
   crntMsngr <- lift $ currentMessengerH 
+--  fun <- lift $ pure $ unsafePerformIO $ evalStateT getData env
   fun <- lift $ case crntMsngr of
-    "TG" -> evalStateT getDataH env
-    _ -> getDataVk . lastUpdate $ env
+    "TG" -> pure $ unsafePerformIO $ evalStateT getData env                      -- ????????????????????
+    _ -> getDataVk . lastUpdate $ env                    -- ???????????????????
   let Just arr = result <$> fun   
-      newObj = Prelude.head arr
+      newObj = Prelude.head arr                                    ---------------------
       newEnv = Environment (1 + update_id newObj) (userData env)
       Just val = textM $ message newObj
       usrName = T.unpack $ username $ chat $ message obj
@@ -438,8 +449,8 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
         conf <- configurationH 
         sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
       pureOne 
-    _ -> do
-      lift $ sandRepeatsH obj env
+    _ -> do       
+      lift $ sandRepeatsH obj env         
       pureTwo 
 
                                           -- Changing the number of repetitions.
@@ -550,7 +561,7 @@ sendKeyboard obj env = do
             case crntMsngr of
               "TG" ->
                 [ "/sendMessage?chat_id="
-                , show $ Lib.id $ chat $ message obj
+                , show $ chat_id $ chat $ message obj
                 , "&text="
                 , stringToUrl question'
                 , "&reply_markup="
@@ -578,7 +589,7 @@ sendComment obj str = do
           case crntMsngr of
             "TG" ->
               [ "/sendMessage?chat_id="
-              , show $ Lib.id $ chat $ message obj
+              , show $ chat_id $ chat $ message obj
               , "&text="
               , stringToUrl str
               ]
@@ -637,10 +648,12 @@ connection req num = do                                      --  to the server.
 
 getData :: StateT Environment IO (Maybe WholeObject)  -- Function for getting data from
 getData =  do                                     -- Telegram's server.
+  pure Nothing
+  lift $ print "88888888888888888888888888888888888888888888888888888888"
   env <- get
   req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
   x <- lift $ connection req 0
-  let code = getResponseStatusCode x
+  let code = getResponseStatusCode x     
   case code == 200 of
     False -> lift $ do
       writingLine ERROR $ "statusCode " ++ show code
@@ -651,7 +664,9 @@ getData =  do                                     -- Telegram's server.
         Just [] -> do
           put $ Environment 1 (userData env)
           getData
-        _ -> pure obj
+        _ -> do
+           lift $ print "999999999999999999999999999999999999999999999999999999"
+           pure obj
 
 firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
 firstUpdateIDSession =  do                       --   for the first time. (Excludes 

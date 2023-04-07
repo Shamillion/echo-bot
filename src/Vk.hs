@@ -32,28 +32,41 @@ instance FromJSON VkData where
     pure $ VkData offset updates
 
 data Updates = Updates
-  { type' :: T.Text
-  , object' :: ObjectVK
+  { updates_type :: T.Text
+  , updates_object :: ObjectVK
   }
   deriving Show
 
 instance FromJSON Updates where
   parseJSON (Object v) = do
-    type' <- v .: "type"
-    object' <- v .: "object"
-    pure $ Updates type' object'
+    updates_type <- v .: "type"
+    updates_object <- v .: "object"
+    pure $ Updates updates_type updates_object
 
 newtype ObjectVK = ObjectVK
-  {message :: MessageVK}
-  deriving (Show, Generic, FromJSON)
+  {messageVK :: MessageVK}
+  deriving Show
+  
+instance FromJSON ObjectVK where
+  parseJSON (Object v) = do
+    messageVK <- v .: "message"
+    pure $ ObjectVK messageVK  
 
 data MessageVK = MessageVK
   { from_id :: Int
-  , id :: Int
-  , text :: T.Text
-  , attachments :: [Media]
+  , messageVK_id :: Int
+  , messageVK_text :: T.Text
+  , messageVK_attachments :: [Media]
   }
-  deriving (Show, Generic, FromJSON)
+  deriving Show
+  
+instance FromJSON MessageVK where
+  parseJSON (Object v) = do
+    from_id <- v .: "from_id"
+    messageVK_id <- v .: "id"
+    messageVK_text <- v .: "text"
+    messageVK_attachments <- v .: "attachments" 
+    pure $ MessageVK from_id messageVK_id messageVK_text messageVK_attachments  
 
 wholeObjectVk :: VkData -> IO WholeObject -- Functions for converting VK's   
 wholeObjectVk obj = do                   --   data to Telegrams's data.
@@ -67,33 +80,33 @@ wholeObjectVk obj = do                   --   data to Telegrams's data.
 
 messageDateVk :: Int -> Updates -> IO MessageDate                            
 messageDateVk num obj = do 
-  messageVk' <- messageVk obj
+  messageFromVk' <- messageFromVk obj
   pure $ MessageDate
     { update_id = num
-    , Lib.message = messageVk' 
+    , Lib.message = messageFromVk' 
     }
 
-messageVk :: Updates -> IO Message                                      
-messageVk obj = do
+messageFromVk :: Updates -> IO Message                                      
+messageFromVk obj = do
   chatVk' <- chatVk obj
   pure $ Message
-    { message_id = Vk.id $ Vk.message $ object' obj
+    { message_id = messageVK_id $ messageVK $ updates_object obj
     , chat = chatVk'
-    , textM = Just $ Vk.text $ Vk.message $ object' obj
-    , Lib.attachments = Just $ Vk.attachments $ Vk.message $ object' obj
+    , textM = Just $ messageVK_text $ messageVK $ updates_object obj
+    , Lib.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
     }
 
 chatVk :: Updates -> IO Chat                                               
 chatVk obj = do
   conf <- configuration
   pure $ Chat
-    { Lib.id = groupIdVK conf
-    , username = T.pack $ show $ from_id $ Vk.message $ object' obj
+    { chat_id = groupIdVK conf
+    , username = T.pack $ show $ from_id $ messageVK $ updates_object obj
     }
  
 getVkData :: T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
 getVkData s k t = do  -- Function for receiving data from
-  x <- connection req 0                 --     the Telegram server.
+  x <- connection req 0                 --     the VK server.
   writingLine DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
   print $ getResponseBody x            -- Delete
@@ -137,7 +150,7 @@ botsLongPollAPI = do
     getLongPollServerRequest' <- getLongPollServerRequest
     connection getLongPollServerRequest' 0
   let code = getResponseStatusCode x
-  writing <- lift $ writingLine ERROR $ "statusCode" ++ show code
+ -- writing <- lift $ writingLine ERROR $ "statusCode" ++ show code
   case code == 200 of
     False -> lift $ writingLine ERROR $ "statusCode " ++ show code
     _ -> do
@@ -160,6 +173,6 @@ botsLongPollAPI = do
             getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
         put $ Environment (update_id $ last arr) (userData env)
         lift $ print arr                       -- Delete
-        mapM_ (ifKeyWord handler getVkData') arr                      ----------------
+        mapM_ (ifKeyWord handler getVkData') arr                      
         newEnv <- get
         fun s k $ T.pack $ show $ lastUpdate newEnv
