@@ -12,7 +12,7 @@ import Data.Functor.Identity (runIdentity)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
-import qualified Data.Text as T hiding (last)
+import qualified Data.Text as T 
 import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
@@ -667,7 +667,7 @@ getData =  do                                     -- Telegram's server.
         _ -> do
            lift $ print "999999999999999999999999999999999999999999999999999999"
            pure obj
-
+  
 firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
 firstUpdateIDSession =  do                       --   for the first time. (Excludes 
   env <- get                                     --   processing of messages sent 
@@ -677,10 +677,13 @@ firstUpdateIDSession =  do                       --   for the first time. (Exclu
     _ -> do
       lift $ getCurrentTime >>= print
       lift $ print "Connection established"
-      let Just arr = result <$> obj
+      let update_id' = case result <$> obj of
+            Just [] -> 0
+            Just md -> (\(x:xs) -> update_id x) (reverse md)
+            _ -> 0
       if lastUpdate newEnv == 1
-      then put $ Environment (update_id $ last arr) (userData newEnv)
-      else put $ Environment (1 + (update_id $ last arr)) (userData newEnv)
+      then put $ Environment update_id' (userData newEnv)
+      else put $ Environment (1 + update_id') (userData newEnv)
 
 endlessCycle :: StateT Environment IO ()  -- Main program cycle for Telegram.
 endlessCycle =  do
@@ -690,8 +693,11 @@ endlessCycle =  do
   case obj of
     Nothing -> lift $ writingLine ERROR "Broken request!"
     _ -> do
-      let Just arr = result <$> obj
-      put $ Environment (1 + (update_id $ last arr)) (userData env)         -------------
+      let arr = case result <$> obj of
+                  Just [x] -> [x]
+                  _ -> []
+          update_id' = if null arr then 0 else (\(x:xs) -> update_id x) (reverse arr)        
+      put $ Environment (1 + update_id') (userData env)        
       newEnv <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle
