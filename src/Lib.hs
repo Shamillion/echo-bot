@@ -49,6 +49,9 @@ instance FromJSON Chat where
     username <- v .: "username"
     pure $ Chat chat_id username  
 
+errorChat :: Chat
+errorChat = Chat 0 "error"
+
 data Message = Message
   { message_id :: Int
   , chat :: Chat
@@ -65,11 +68,23 @@ instance FromJSON Message where
     attachments <- v .:? "attachments" 
     pure $ Message message_id chat textM attachments
 
+errorMessage :: Message
+errorMessage = 
+  Message
+    { message_id = 0
+    , chat = errorChat
+    , textM = Nothing
+    , attachments = Nothing
+    }
+    
 data MessageDate = MessageDate
   { update_id :: Int
   , message :: Message
   }
   deriving (Show, Generic, FromJSON)
+  
+errorMessageDate :: MessageDate
+errorMessageDate = MessageDate 0 errorMessage 
 
 data WholeObject = WholeObject
   { ok :: Bool
@@ -129,15 +144,15 @@ instance FromJSON Media where
         ]
 
 data ActionVk = ActionVk -- Data types for the VK keyboard.
-  { type' :: T.Text                                                -----------------
+  { typeActionVk :: T.Text                                                -----------------
   , label :: T.Text
   }
   deriving Show
 
 instance ToJSON ActionVk where
-  toJSON (ActionVk type' label) =
+  toJSON (ActionVk typeActionVk label) =
     object
-      [ "type" .= type'
+      [ "type" .= typeActionVk
       , "label" .= label
       ]
 
@@ -167,7 +182,7 @@ buttonVk num =
 toAction :: Int -> ActionVk
 toAction num =
   ActionVk
-    { type' = "text"
+    { typeActionVk = "text"
     , label = T.pack $ show num
     }
 
@@ -298,9 +313,6 @@ stringRequest str = do
           , T.unpack $ apiVKVersion conf
           ]
 
---message' :: MessageDate -> Message
---message'  = message 
-
 forwardMessagesVk :: Int -> MessageDate -> IO Request -- Forming a request
 forwardMessagesVk randomId' obj =                  --   to return a message
   stringRequest $                                  --      for VK.
@@ -322,11 +334,15 @@ repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) -- Sending a
 repeatMessageVk obj = do              -- request to VK to return a message.
   r <- randomId 
   let userId = T.unpack $ username $ chat $ message obj
-      Just str = textM $ message obj
-      Just arr = attachments $ message obj 
+      str = case textM $ message obj of
+              Just s -> s
+              _ -> ""              
+      arr = case attachments $ message obj of
+              Just ls -> ls
+              _ -> [] 
       add = case arr of
               [] -> ""
-              _  -> case type_media $ head arr of
+              _  -> case type_media $ (\(x:xs) -> x) arr of
                       "sticker" -> ""
                       _ -> "&attachment="           
   string <- stringRequest $
@@ -346,7 +362,9 @@ attachment (x:xs) userId = case x of
   Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs userId
   AudioMessage _ l -> T.unpack l ++ attachment xs userId
   Others t mI oI u k -> runIdentity $ do
-    let Just lnk = u
+    let lnk = case u of
+                Just txt -> txt
+                _ -> ""
     pure $ if t == "doc" && userId == show oI
       then T.unpack lnk ++ "," ++ attachment xs userId 
       else mconcat 
@@ -433,10 +451,14 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
   fun <- lift $ case crntMsngr of
     "TG" -> pure $ unsafePerformIO $ evalStateT getData env                      -- ????????????????????
     _ -> getDataVk . lastUpdate $ env                    -- ???????????????????
-  let Just arr = result <$> fun   
-      newObj = Prelude.head arr                                    ---------------------
+  let arr = case result <$> fun of
+              Just ls -> ls
+              _ -> [] 
+      newObj = if null arr then errorMessageDate else (\(x:xs) -> x) arr                                   ---------------------
       newEnv = Environment (1 + update_id newObj) (userData env)
-      Just val = textM $ message newObj
+      val = case textM $ message newObj of
+              Just s -> s
+              _ -> ""    
       usrName = T.unpack $ username $ chat $ message obj
   case (textM $ message obj) of
     Just "/repeat" -> do
@@ -512,7 +534,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       wordIsRepeatH WorkHandle {..} getDataVk obj xs
 
 toKeyboardButton :: Int -> KeyboardButton
-toKeyboardButton num = KeyboardButton{text = T.pack $ show num}
+toKeyboardButton num = KeyboardButton {text = T.pack $ show num}
 
 createKeyboard :: ReplyKeyboardMarkup
 createKeyboard =
