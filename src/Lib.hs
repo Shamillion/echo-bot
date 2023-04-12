@@ -445,29 +445,23 @@ ifKeyWord ::                     -- Keyword search and processing.
   MessageDate ->
   StateT Environment m a
 ifKeyWord WorkHandle {..} getDataVk obj = do   
-  env <- get
-  crntMsngr <- lift $ currentMessengerH 
---  fun <- lift $ pure $ unsafePerformIO $ evalStateT getData env
-  fun <- lift $ case crntMsngr of
-    "TG" -> pure $ unsafePerformIO $ evalStateT getData env                      -- ????????????????????
-    _ -> getDataVk . lastUpdate $ env                    -- ???????????????????
-  let arr = case result <$> fun of
-              Just ls -> ls
-              _ -> [] 
-      newObj = if null arr then errorMessageDate else (\(x:xs) -> x) arr                                   ---------------------
-      newEnv = Environment (1 + update_id newObj) (userData env)
-      val = case textM $ message newObj of
-              Just s -> s
-              _ -> ""    
-      usrName = T.unpack $ username $ chat $ message obj
+  env <- get   
+  let usrName = T.unpack $ username $ chat $ message obj
   case (textM $ message obj) of
-    Just "/repeat" -> do
+    Just "/repeat" -> do             
       lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
       lift $ sendKeyboardH obj env
+      crntMsngr <- lift $ currentMessengerH 
+      fun <- lift $ case crntMsngr of
+        "TG" -> evalStateT getDataH env                      
+        _ -> getDataVk . lastUpdate $ env
+      let arr = case result <$> fun of
+            Just ls -> ls
+            _ -> []      
       wordIsRepeatH WorkHandle {..} getDataVk obj arr
     Just "/help" -> do
-      lift $ writingLineH INFO $ "Received /help from " ++ usrName
       lift $ do
+        writingLineH INFO $ "Received /help from " ++ usrName
         conf <- configurationH 
         sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
       pureOne 
@@ -485,7 +479,7 @@ wordIsRepeat ::
   StateT Environment m a
 wordIsRepeat WorkHandle {..} getDataVk obj [] = do     -- getDataVk needed to get  
   env <- get                                   --   updates from VK.
-  crntMsngr <- lift $ currentMessengerH   
+  crntMsngr <- lift currentMessengerH   
   fun <- lift $ case crntMsngr of
     "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
@@ -493,7 +487,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do     -- getDataVk needed to ge
   wordIsRepeatH WorkHandle {..} getDataVk obj newArr
 wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
-  crntMsngr <- lift $ currentMessengerH 
+  crntMsngr <- lift currentMessengerH 
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message newObj
@@ -671,7 +665,6 @@ connection req num = do                                      --  to the server.
 getData :: StateT Environment IO (Maybe WholeObject)  -- Function for getting data from
 getData =  do                                     -- Telegram's server.
   pure Nothing
-  lift $ print "88888888888888888888888888888888888888888888888888888888"
   env <- get
   req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
   x <- lift $ connection req 0
@@ -687,7 +680,6 @@ getData =  do                                     -- Telegram's server.
           put $ Environment 1 (userData env)
           getData
         _ -> do
-           lift $ print "999999999999999999999999999999999999999999999999999999"
            pure obj
   
 firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
