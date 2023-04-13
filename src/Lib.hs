@@ -19,7 +19,7 @@ import Network.HTTP.Simple
 import System.IO
 import System.Random (Random (randomRIO))
 
-import System.IO.Unsafe (unsafePerformIO)
+
 
 data Configuration = Configuration -- Data type for the configuration file.
   { messenger :: T.Text
@@ -403,13 +403,13 @@ sandRepeats obj env = do
   chatId = show $ chat_id $ chat $ message obj
 
 
-data WorkHandle m a = WorkHandle -- Handle Pattern
+data WorkHandle m a b = WorkHandle -- Handle Pattern
   { writingLineH :: Priority -> String -> m a
-  , sendKeyboardH :: MessageDate -> Environment -> m (Response LC.ByteString)
-  , sendCommentH :: MessageDate -> String -> m (Response LC.ByteString)
+  , sendKeyboardH :: MessageDate -> Environment -> m b --(Response LC.ByteString)
+  , sendCommentH :: MessageDate -> String -> m b -- (Response LC.ByteString)
   , sandRepeatsH :: MessageDate -> Environment -> m a
   , wordIsRepeatH ::
-      WorkHandle m a ->
+      WorkHandle m a b ->
       (Int -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
@@ -419,10 +419,9 @@ data WorkHandle m a = WorkHandle -- Handle Pattern
   , getDataH :: StateT Environment m (Maybe WholeObject)  
   , pureOne :: StateT Environment m a
   , pureTwo :: StateT Environment m a
-  , print' ::  String -> m ()
   }
 
-handler :: WorkHandle IO () -- Handle for work of echobot
+handler :: WorkHandle IO () (Response LC.ByteString) -- Handle for work of echobot
 handler =
   WorkHandle
     { writingLineH = writingLine
@@ -435,12 +434,11 @@ handler =
     , getDataH = getData
     , pureOne = pure ()
     , pureTwo = pure ()
-    , print' = print
     }
 
 ifKeyWord ::                     -- Keyword search and processing.
   Monad m =>
-  WorkHandle m a ->
+  WorkHandle m a b ->
   (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
@@ -472,7 +470,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
                                           -- Changing the number of repetitions.
 wordIsRepeat ::
   Monad m =>
-  WorkHandle m a ->
+  WorkHandle m a b ->
   (Int -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->

@@ -9,6 +9,7 @@ import GHC.Generics (Generic)
 import Network.HTTP.Simple
 import Lib
 
+
 data VkKeyServerTs = VkKeyServerTs       -- Data types for VK answer on    
   { key :: T.Text                        --   getLongPollServer request.
   , server :: T.Text
@@ -113,7 +114,7 @@ getVkData s k t = do  -- Function for receiving data from
   case obj of
     Left e -> do
       print $ getResponseBody x
-      writingLine ERROR $ e
+      writingLine ERROR e
       pure Nothing
     Right v -> do
       writingLine DEBUG $ show v
@@ -149,8 +150,7 @@ botsLongPollAPI = do
   x <- lift $ do
     getLongPollServerRequest' <- getLongPollServerRequest
     connection getLongPollServerRequest' 0
-  let code = getResponseStatusCode x
- -- writing <- lift $ writingLine ERROR $ "statusCode" ++ show code
+  let code = getResponseStatusCode x  
   case code == 200 of
     False -> lift $ writingLine ERROR $ "statusCode " ++ show code
     _ -> do

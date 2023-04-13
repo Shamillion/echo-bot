@@ -6,35 +6,50 @@ import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
 import Lib
 import Network.HTTP.Simple
-import System.IO.Unsafe (unsafePerformIO)
 import Test.Hspec
 import Test.QuickCheck
 
--- import Control.Exception (evaluate)
+
 
 environmentT :: Environment                                            
 environmentT = Environment 0 $ Map.singleton "" 3
 
-handlerForTestIfKeyWord :: WorkHandle Identity String -- Handle for tests of echobot
+testConfig :: Configuration   
+testConfig =                  
+  Configuration 
+    { messenger = "no matter"
+    , hostTG = "0"
+    , hostVK = "0"
+    , tokenTG = "0"
+    , tokenVK = "0"
+    , groupIdVK = 0
+    , apiVKVersion = "0"
+    , helpMess = ["help message"]
+    , repeatMess = "repeat message"
+    , defaultRepaets = 3
+    , priorityLevel = ERROR
+    , logOutput = "cons"
+    }
+
+handlerForTestIfKeyWord :: WorkHandle Identity String String -- Handle for tests of echobot
 handlerForTestIfKeyWord =
   WorkHandle
     { writingLineH = \x y -> pure "nothing"
- --   , sendKeyboardH = \x y -> pure property 
- --   , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
+    , sendKeyboardH = \x y -> pure "keyboard" 
+    , sendCommentH = \x y -> pure "comment"
     , sandRepeatsH = \x y -> pure "nothing"
     , wordIsRepeatH = \w x y z -> pure "/repeat"
+    , currentMessengerH = pure "no matter" 
+    , configurationH = pure testConfig 
+    , getDataH = pure Nothing     
     , pureOne = pure "/help"
     , pureTwo = pure "anything"
     }
 
-handlerForTestWordIsRepeat :: WorkHandle Identity String -- Handle for tests of echobot
+handlerForTestWordIsRepeat :: WorkHandle Identity String String -- Handle for tests of echobot
 handlerForTestWordIsRepeat =
-  WorkHandle
-    { writingLineH = \x y -> pure "nothing"
- --   , sendKeyboardH = \x y -> --httpLBS $ parseRequest_ ""
---    , sendCommentH = \x y -> httpLBS $ parseRequest_ ""
-    , sandRepeatsH = \x y -> pure "nothing"
-    , wordIsRepeatH = \w x y z -> pure "Another user || empty array"
+  handlerForTestIfKeyWord
+    { wordIsRepeatH = \w x y z -> pure "Another user || empty array"
     , pureOne = pure "Number from 1 to 5"
     , pureTwo = pure "Not number from 1 to 5"
     }
@@ -59,8 +74,6 @@ messageDate usr txt =
           }
     }
 
---testEnvironment :: Environment
---testEnvironment =  Environment 0 $ Map.singleton "userTest" (defaultRepaets configuration)
 
 testingFunctionIfKeyWord :: T.Text -> String
 testingFunctionIfKeyWord txt =
