@@ -2,12 +2,29 @@
 
 module Lib where
 
-import Control.Applicative 
+import Control.Applicative ( Alternative((<|>)) ) 
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
-import Data.Foldable
+import Data.Foldable ( asum )
 import Control.Monad.State.Lazy
+    ( replicateM_,
+      when,
+      evalStateT,
+      MonadState(get, put),
+      MonadTrans(lift),
+      StateT(runStateT) )
 import Data.Aeson
+    ( decode,
+      eitherDecode,
+      encode,
+      (.:),
+      (.:?),
+      withObject,
+      object,
+      FromJSON(parseJSON),
+      Value(Object),
+      KeyValue((.=)),
+      ToJSON(toJSON) )
 import Data.Functor.Identity (runIdentity)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as LC
@@ -16,7 +33,15 @@ import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
+    ( parseRequest_,
+      getResponseBody,
+      getResponseStatusCode,
+      httpLBS,
+      HttpException,
+      Request,
+      Response )
 import System.IO
+    ( Handle, hFlush, openFile, hPutStrLn, IOMode(AppendMode) )
 import System.Random (Random (randomRIO))
 
 
@@ -31,7 +56,7 @@ data Configuration = Configuration -- Data type for the configuration file.
   , apiVKVersion :: T.Text
   , helpMess :: [T.Text]
   , repeatMess :: T.Text
-  , defaultRepaets :: Int
+  , defaultRepeats :: Int
   , priorityLevel :: Priority
   , logOutput :: T.Text
   }
@@ -202,7 +227,7 @@ file  = openFile "../log.log" AppendMode
 writingLine :: Priority -> String -> IO () -- Function writes log
 writingLine lvl str = do                     --       information down.
   logLevel' <- logLevel
-  if (lvl >= logLevel') 
+  if lvl >= logLevel' 
     then do
       t <- time
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
@@ -248,7 +273,7 @@ errorConfig =                  --   file is read unsuccessfully.
     , apiVKVersion = "Error"
     , helpMess = ["Error"]
     , repeatMess = "Error"
-    , defaultRepaets = 0
+    , defaultRepeats = 0
     , priorityLevel = ERROR
     , logOutput = "cons"
     }
@@ -346,7 +371,7 @@ repeatMessageVk obj = do              -- request to VK to return a message.
                       "sticker" -> ""
                       _ -> "&attachment="           
   string <- stringRequest $
-        mconcat $
+        mconcat 
           [ userId
           , "&random_id="
           , show r
@@ -354,7 +379,7 @@ repeatMessageVk obj = do              -- request to VK to return a message.
           , stringToUrl $ T.unpack str ++ add ++ attachment arr userId                    
           ]   
   writingLine DEBUG $ show string
-  httpLBS $ string
+  httpLBS string
 
 attachment :: [Media] -> String -> String  -- Processing of attachments for VK.
 attachment [] _ = ""
@@ -396,7 +421,7 @@ sandRepeats obj env = do
     case crntMsngr of
       "TG" -> do
         writingLine DEBUG $ show string
-        httpLBS $ string
+        httpLBS string
       _ -> repeatMessageVk obj
  where   
   messageId = show $ message_id $ message obj
@@ -445,11 +470,11 @@ ifKeyWord ::                     -- Keyword search and processing.
 ifKeyWord WorkHandle {..} getDataVk obj = do   
   env <- get   
   let usrName = T.unpack $ username $ chat $ message obj
-  case (textM $ message obj) of
+  case textM $ message obj of
     Just "/repeat" -> do             
       lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
       lift $ sendKeyboardH obj env
-      crntMsngr <- lift $ currentMessengerH 
+      crntMsngr <- lift currentMessengerH 
       fun <- lift $ case crntMsngr of
         "TG" -> evalStateT getDataH env                      
         _ -> getDataVk . lastUpdate $ env
@@ -492,10 +517,10 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       usrName = username $ chat $ message obj
       newUsrName = username $ chat $ message newObj
       num = if crntMsngr == "TG" then 1 else 0
-  case (usrName == newUsrName) of -- We check that the message came from the user
-    True ->                       --  who requested a change in the number of repetitions.      
-      case (elem val ["1", "2", "3", "4", "5"]) of
-        True -> do
+  if usrName == newUsrName        -- We check that the message came from the user
+    then (                       --  who requested a change in the number of repetitions.      
+      if val `elem` ["1", "2", "3", "4", "5"]
+        then ( do
           lift $
             sendCommentH obj $
               "Done! Set up "
@@ -515,15 +540,17 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                   (read $ T.unpack val)
                   (userData env)
               )
-          pureOne 
-        _ -> do
+          pureOne
+        )            
+        else ( do
           lift $ sandRepeatsH newObj newEnv
           put newEnv
-          pureTwo 
-    _ -> do
+          pureTwo )
+    )    
+    else (do
       ifKeyWord WorkHandle {..} getDataVk newObj
       put newEnv
-      wordIsRepeatH WorkHandle {..} getDataVk obj xs
+      wordIsRepeatH WorkHandle {..} getDataVk obj xs)
 
 toKeyboardButton :: Int -> KeyboardButton
 toKeyboardButton num = KeyboardButton {text = T.pack $ show num}
@@ -629,16 +656,14 @@ data Environment = Environment
 getNumRepeats :: MessageDate -> Environment -> IO Int
 getNumRepeats obj env = do
   conf <- configuration
-  pure $ case (Map.lookup usrName $ userData env) of
-    Nothing -> defaultRepaets conf
+  pure $ case Map.lookup usrName $ userData env of
+    Nothing -> defaultRepeats conf
     Just n -> n
  where
   usrName = username $ chat $ message obj
 
 environment :: IO Environment                                            
-environment = do
-  conf <- configuration
-  pure $ Environment 0 $ Map.singleton "" (defaultRepaets conf)
+environment = Environment 0 . Map.singleton "" . defaultRepeats <$> configuration
 
 connection :: Request -> Int -> IO (Response LC.ByteString)  -- Function for connecting 
 connection req num = do                                      --  to the server.
@@ -662,23 +687,22 @@ connection req num = do                                      --  to the server.
 
 getData :: StateT Environment IO (Maybe WholeObject)  -- Function for getting data from
 getData =  do                                     -- Telegram's server.
-  pure Nothing
   env <- get
   req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
   x <- lift $ connection req 0
   let code = getResponseStatusCode x     
-  case code == 200 of
-    False -> lift $ do
-      writingLine ERROR $ "statusCode " ++ show code
-      pure Nothing
-    _ -> do
+  if code == 200 
+    then ( do
       let obj = decode $ getResponseBody x
       case result <$> obj of
         Just [] -> do
           put $ Environment 1 (userData env)
           getData
         _ -> do
-           pure obj
+           pure obj)
+    else lift $ do
+      writingLine ERROR $ "statusCode " ++ show code
+      pure Nothing     
   
 firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
 firstUpdateIDSession =  do                       --   for the first time. (Excludes 

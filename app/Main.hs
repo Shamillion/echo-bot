@@ -1,8 +1,15 @@
 module Main where
 
-import Control.Monad.State.Lazy
+import Control.Monad.State.Lazy ( evalStateT, execStateT )
 import Lib
-import Vk
+    ( configuration,
+      endlessCycle,
+      environment,
+      firstUpdateIDSession,
+      writingLine,
+      Configuration(messenger),
+      Priority(INFO) )
+import Vk ( botsLongPollAPI )
          
 
 main :: IO ()

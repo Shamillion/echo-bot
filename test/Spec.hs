@@ -1,13 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Monad.Identity
-import Control.Monad.State.Lazy
+import Control.Monad.Identity  (Identity, runIdentity)
+import Control.Monad.State.Lazy (evalStateT, execStateT)
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
-import Lib
-import Network.HTTP.Simple
-import Test.Hspec
-import Test.QuickCheck
+import Lib 
+    ( Configuration (..)
+    , Chat (..)
+    , Environment (..)
+    , ifKeyWord
+    , Message (..)
+    , MessageDate (..)
+    , NumRepeats
+    , Priority( ERROR )
+    , userData
+    , WholeObject (..)
+    , wordIsRepeat
+    , WorkHandle (..)
+    )
+import Test.Hspec (describe, hspec, it, shouldBe)
+import Test.QuickCheck  (verbose)
 
 
 
@@ -26,7 +38,7 @@ testConfig =
     , apiVKVersion = "0"
     , helpMess = ["help message"]
     , repeatMess = "repeat message"
-    , defaultRepaets = 3
+    , defaultRepeats = 3
     , priorityLevel = ERROR
     , logOutput = "cons"
     }

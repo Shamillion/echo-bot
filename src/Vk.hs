@@ -3,11 +3,29 @@
 module Vk where
 
 import Control.Monad.State.Lazy
+    ( MonadState(get, put), MonadTrans(lift), StateT )
 import Data.Aeson
+    ( eitherDecode, (.:), FromJSON(parseJSON), Value(Object) )
 import qualified Data.Text as T 
 import GHC.Generics (Generic)
 import Network.HTTP.Simple
+    ( parseRequest_, getResponseBody, getResponseStatusCode, Request )
 import Lib
+    ( Environment(..),
+      Media,
+      Priority(ERROR, DEBUG),
+      WholeObject(..),
+      MessageDate(..),
+      Message(..),
+      Chat(..),
+      Configuration(groupIdVK, apiVKVersion),
+      writingLine,
+      configuration,
+      myHost,
+      myToken,
+      handler,
+      ifKeyWord,
+      connection )
 
 
 data VkKeyServerTs = VkKeyServerTs       -- Data types for VK answer on    
@@ -146,14 +164,12 @@ getLongPollServerRequest = do
 
 botsLongPollAPI :: StateT Environment IO () -- Main program cycle for VK.
 botsLongPollAPI = do
-  envir <- get
   x <- lift $ do
     getLongPollServerRequest' <- getLongPollServerRequest
     connection getLongPollServerRequest' 0
   let code = getResponseStatusCode x  
-  case code == 200 of
-    False -> lift $ writingLine ERROR $ "statusCode " ++ show code
-    _ -> do
+  if code == 200 
+    then ( do
       let obj = eitherDecode $ getResponseBody x
       case obj of
         Left e -> lift $ writingLine ERROR $ show e
@@ -161,7 +177,8 @@ botsLongPollAPI = do
           let server' = server $ response v
               key' = key $ response v
               ts' = ts $ response v
-          fun server' key' ts'
+          fun server' key' ts')
+    else lift $ writingLine ERROR $ "statusCode " ++ show code          
  where
   fun s k t = do
     env <- get
