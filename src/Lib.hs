@@ -45,8 +45,12 @@ import System.IO
 import System.Random (Random (randomRIO))
 
 
+-- Data type for the logger.
+data Priority = DEBUG | INFO | WARNING | ERROR 
+  deriving (Show, Eq, Ord, Generic, FromJSON)
 
-data Configuration = Configuration -- Data type for the configuration file.
+-- Data type for the configuration file.
+data Configuration = Configuration 
   { messenger :: T.Text
   , hostTG :: T.Text
   , hostVK :: T.Text
@@ -62,7 +66,8 @@ data Configuration = Configuration -- Data type for the configuration file.
   }
   deriving (Show, Generic, FromJSON)
 
-data Chat = Chat                   -- Data types for the Telegram answer.
+-- Data types for the Telegram answer.
+data Chat = Chat                   
   { chat_id :: Int
   , username :: T.Text
   }
@@ -117,7 +122,8 @@ data WholeObject = WholeObject
   }
   deriving (Show, Generic, FromJSON)
 
-newtype KeyboardButton = KeyboardButton -- Data type for the Telegram keyboard.
+-- Data type for the Telegram keyboard.
+newtype KeyboardButton = KeyboardButton 
   {text :: T.Text}
   deriving (Show, Generic, ToJSON)
 
@@ -127,9 +133,6 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   , one_time_keyboard :: Bool
   }
   deriving (Show, Generic, ToJSON)
-
-data Priority = DEBUG | INFO | WARNING | ERROR -- Data type for the logger.
-  deriving (Show, Eq, Ord, Generic, FromJSON)
 
 data Media =  Sticker { type_media :: T.Text
                       , sticker_id :: Int
@@ -168,7 +171,8 @@ instance FromJSON Media where
         pure $ Others type_media media_id owner_id url access_key
         ]
 
-data ActionVk = ActionVk -- Data types for the VK keyboard.
+-- Data types for the VK keyboard.
+data ActionVk = ActionVk 
   { typeActionVk :: T.Text                                                -----------------
   , label :: T.Text
   }
@@ -198,7 +202,8 @@ instance ToJSON KeyboardVk where
       , "buttons" .= buttonsVk
       ]
 
-buttonVk :: Int -> ButtonVk      -- Functions types for the VK keyboard.
+-- Functions types for the VK keyboard.
+buttonVk :: Int -> ButtonVk      
 buttonVk num =
   ButtonVk
     { action = toAction num
@@ -218,14 +223,17 @@ keyboardVk =
     , buttonsVk = [map buttonVk [1 .. 5]]
     }
 
-time :: IO String                             -- Get current time for the logger.
+-- Getting current time for the logger.
+time :: IO String                             
 time = take 19 . show <$> getCurrentTime
 
-file :: IO Handle                                -- Get Handle for the logfile.
+-- Getting Handle for the logfile.
+file :: IO Handle                                
 file  = openFile "../log.log" AppendMode
 
-writingLine :: Priority -> String -> IO () -- Function writes log
-writingLine lvl str = do                     --       information down.
+-- Function writes information to log.
+writingLine :: Priority -> String -> IO () 
+writingLine lvl str = do                     
   logLevel' <- logLevel
   if lvl >= logLevel' 
     then do
@@ -246,8 +254,9 @@ writingLine lvl str = do                     --       information down.
     WARNING -> "WARNING"
     ERROR -> "ERROR  "     
 
+-- Getting information from file.
 getConfiguration :: String -> IO (Either String Configuration)
-getConfiguration fileName = do                   --  information from file.
+getConfiguration fileName = do                   
     t <- time
     content <- L.readFile fileName
     let obj = eitherDecode content
@@ -261,8 +270,9 @@ getConfiguration fileName = do                   --  information from file.
         hFlush file'
         pure obj
 
-errorConfig :: Configuration   -- The object is used when the configuration
-errorConfig =                  --   file is read unsuccessfully.
+-- The object is used when the configuration file is read unsuccessfully.
+errorConfig :: Configuration  
+errorConfig =                 
   Configuration 
     { messenger = "Error"
     , hostTG = "Error"
@@ -278,25 +288,29 @@ errorConfig =                  --   file is read unsuccessfully.
     , logOutput = "cons"
     }
 
-configuration :: IO Configuration              -- Try to read configuration file.
+-- Trying to read configuration file.
+configuration :: IO Configuration              
 configuration = do
   getConf <- getConfiguration "config.json"
   pure $ case getConf of
     Right v -> v
     _ -> errorConfig
 
-currentMessenger :: IO T.Text                         -- Selected messenger.
+-- Selected messenger.
+currentMessenger :: IO T.Text                         
 currentMessenger = messenger <$> configuration                                
 
+-- The host of selected messenger.
 myHost :: IO String                                                           
 myHost = do
   conf <- configuration
   crntMsngr <- currentMessenger
-  pure $ case crntMsngr of               -- The host of selected messenger.
+  pure $ case crntMsngr of               
     "TG" -> T.unpack $ hostTG conf
     _ -> T.unpack $ hostVK conf
 
-myToken :: IO String                              -- The token of selected messenger.
+-- The token of selected messenger.
+myToken :: IO String                              
 myToken = do                                                                  
   conf <- configuration
   crntMsngr <- currentMessenger
@@ -307,14 +321,17 @@ myToken = do
 messengerHost :: IO String                                               
 messengerHost = (++ "/bot") <$> myHost
 
-logLevel :: IO Priority                             -- Logging level.         
+-- Logging level.
+logLevel :: IO Priority                                      
 logLevel =  priorityLevel <$> configuration
- 
-createStringGetUpdates :: Int -> String -- Update request string for Telegram.
+
+-- Update request string for Telegram. 
+createStringGetUpdates :: Int -> String 
 createStringGetUpdates num =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
-stringRequest :: String -> IO Request -- Request generation.                   
+-- Request generation.
+stringRequest :: String -> IO Request                    
 stringRequest str = do
   conf <- configuration
   crntMsngr <- currentMessenger
@@ -338,9 +355,10 @@ stringRequest str = do
           , T.unpack $ apiVKVersion conf
           ]
 
-forwardMessagesVk :: Int -> MessageDate -> IO Request -- Forming a request
-forwardMessagesVk randomId' obj =                  --   to return a message
-  stringRequest $                                  --      for VK.
+-- Forming a request to return a message for VK.
+forwardMessagesVk :: Int -> MessageDate -> IO Request 
+forwardMessagesVk randomId' obj =                  
+  stringRequest $                                 
     mconcat
       [ userId
       , "&random_id="
@@ -352,11 +370,13 @@ forwardMessagesVk randomId' obj =                  --   to return a message
   userId = T.unpack $ username $ chat $ message obj
   messId = show $ message_id $ message obj
 
-randomId :: IO Int                             -- Generating random numbers 
-randomId = randomRIO (1, 1000000)              --   for VK requests. 
+-- Generating random numbers for VK requests.
+randomId :: IO Int                             
+randomId = randomRIO (1, 1000000)               
 
-repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) -- Sending a
-repeatMessageVk obj = do              -- request to VK to return a message.
+-- Sending a request to VK to return a message.
+repeatMessageVk :: MessageDate -> IO (Response LC.ByteString) 
+repeatMessageVk obj = do              
   r <- randomId 
   let userId = T.unpack $ username $ chat $ message obj
       str = case textM $ message obj of
@@ -381,7 +401,8 @@ repeatMessageVk obj = do              -- request to VK to return a message.
   writingLine DEBUG $ show string
   httpLBS string
 
-attachment :: [Media] -> String -> String  -- Processing of attachments for VK.
+-- Processing of attachments for VK.
+attachment :: [Media] -> String -> String  
 attachment [] _ = ""
 attachment (x:xs) userId = case x of
   Sticker t n -> "&sticker_id=" ++ show n ++ attachment xs userId
@@ -404,10 +425,11 @@ attachment (x:xs) userId = case x of
             , attachment xs userId 
             ]
 
-sandRepeats :: MessageDate -> Environment -> IO ()   -- Sending repetitions of
+-- Sending repetitions of request for Telegram.
+sandRepeats :: MessageDate -> Environment -> IO ()   
 sandRepeats obj env = do
   crntMsngr <- currentMessenger  
-  string <- stringRequest $                    -- Request for Telegram.
+  string <- stringRequest $                    
     mconcat
       [ "/copyMessage?chat_id="
       , chatId
@@ -417,7 +439,7 @@ sandRepeats obj env = do
       , messageId
       ] 
   num <- getNumRepeats obj env           -- Getting the number of repeats for a current user.                                --    a message.
-  replicateM_ num $                                  -- Repeat the action num times.
+  replicateM_ num $                      -- Repeat the action num times.
     case crntMsngr of
       "TG" -> do
         writingLine DEBUG $ show string
@@ -427,11 +449,11 @@ sandRepeats obj env = do
   messageId = show $ message_id $ message obj
   chatId = show $ chat_id $ chat $ message obj
 
-
-data WorkHandle m a b = WorkHandle -- Handle Pattern
+-- Handle Pattern
+data WorkHandle m a b = WorkHandle 
   { writingLineH :: Priority -> String -> m a
-  , sendKeyboardH :: MessageDate -> Environment -> m b --(Response LC.ByteString)
-  , sendCommentH :: MessageDate -> String -> m b -- (Response LC.ByteString)
+  , sendKeyboardH :: MessageDate -> Environment -> m b 
+  , sendCommentH :: MessageDate -> String -> m b 
   , sandRepeatsH :: MessageDate -> Environment -> m a
   , wordIsRepeatH ::
       WorkHandle m a b ->
@@ -445,8 +467,8 @@ data WorkHandle m a b = WorkHandle -- Handle Pattern
   , pureOne :: StateT Environment m a
   , pureTwo :: StateT Environment m a
   }
-
-handler :: WorkHandle IO () (Response LC.ByteString) -- Handle for work of echobot
+-- Handle for work of echobot.
+handler :: WorkHandle IO () (Response LC.ByteString) 
 handler =
   WorkHandle
     { writingLineH = writingLine
@@ -461,7 +483,8 @@ handler =
     , pureTwo = pure ()
     }
 
-ifKeyWord ::                     -- Keyword search and processing.
+-- Keyword search and processing.
+ifKeyWord ::                     
   Monad m =>
   WorkHandle m a b ->
   (Int -> m (Maybe WholeObject)) ->
@@ -492,7 +515,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       lift $ sandRepeatsH obj env         
       pureTwo 
 
-                                          -- Changing the number of repetitions.
+-- Changing the number of repetitions.                                          
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
@@ -518,7 +541,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       newUsrName = username $ chat $ message newObj
       num = if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName        -- We check that the message came from the user
-    then (                       --  who requested a change in the number of repetitions.      
+    then (                        --  who requested a change in the number of repetitions.      
       if val `elem` ["1", "2", "3", "4", "5"]
         then ( do
           lift $
@@ -552,6 +575,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       put newEnv
       wordIsRepeatH WorkHandle {..} getDataVk obj xs)
 
+-- Creating keyboard for TG.
 toKeyboardButton :: Int -> KeyboardButton
 toKeyboardButton num = KeyboardButton {text = T.pack $ show num}
 
@@ -665,8 +689,9 @@ getNumRepeats obj env = do
 environment :: IO Environment                                            
 environment = Environment 0 . Map.singleton "" . defaultRepeats <$> configuration
 
-connection :: Request -> Int -> IO (Response LC.ByteString)  -- Function for connecting 
-connection req num = do                                      --  to the server.
+ -- Function for connecting to the server.
+connection :: Request -> Int -> IO (Response LC.ByteString) 
+connection req num = do                                      
     x <- try $ httpLBS req
     writingLine DEBUG $ show req
     case x of
@@ -685,8 +710,9 @@ connection req num = do                                      --  to the server.
           print "Connection restored"
         pure v
 
-getData :: StateT Environment IO (Maybe WholeObject)  -- Function for getting data from
-getData =  do                                     -- Telegram's server.
+-- Function for getting data from Telegram's server.
+getData :: StateT Environment IO (Maybe WholeObject)  
+getData =  do                                     
   env <- get
   req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
   x <- lift $ connection req 0
@@ -703,11 +729,13 @@ getData =  do                                     -- Telegram's server.
     else lift $ do
       writingLine ERROR $ "statusCode " ++ show code
       pure Nothing     
-  
-firstUpdateIDSession :: StateT Environment IO () -- Function for getting update_id 
-firstUpdateIDSession =  do                       --   for the first time. (Excludes 
-  env <- get                                     --   processing of messages sent 
-  (obj, newEnv) <- lift $ runStateT getData env       --   before the program is started).         
+
+-- Function for getting update_id  for the first time.  
+--  (Excludes processing of messages sent before the program is started).   
+firstUpdateIDSession :: StateT Environment IO ()  
+firstUpdateIDSession =  do                      
+  env <- get                                     
+  (obj, newEnv) <- lift $ runStateT getData env              
   case obj of
     Nothing -> pure ()
     _ -> do
@@ -721,7 +749,8 @@ firstUpdateIDSession =  do                       --   for the first time. (Exclu
       then put $ Environment update_id' (userData newEnv)
       else put $ Environment (1 + update_id') (userData newEnv)
 
-endlessCycle :: StateT Environment IO ()  -- Main program cycle for Telegram.
+-- Main program cycle for Telegram.
+endlessCycle :: StateT Environment IO ()  
 endlessCycle =  do
   env <- get
   obj <- lift $ evalStateT getData env
