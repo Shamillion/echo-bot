@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1a141d5af3fa4bfa9e9c7481fa09788f2d9b062735d31f9b2e98df648cf72605
+-- hash: c0e9ed276ab443448b77a29ad3c623722853c9ed81f7d8391262a009b983182f
 
 name:           echo-bot
 version:        0.1.0.0
@@ -36,6 +36,7 @@ library
   default-extensions:
       OverloadedStrings
       RecordWildCards
+  ghc-options: -Wall -Werror
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -57,7 +58,7 @@ executable echo-bot-exe
   default-extensions:
       OverloadedStrings
       RecordWildCards
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -81,7 +82,7 @@ test-suite echo-bot-test
   default-extensions:
       OverloadedStrings
       RecordWildCards
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       QuickCheck
     , aeson
