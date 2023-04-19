@@ -203,11 +203,11 @@ botsLongPollAPI = do
               let server' = server $ response v
                   key' = key $ response v
                   ts' = ts $ response v
-              fun server' key' ts'
+              getAnswer server' key' ts'
       )
     else lift $ writingLine ERROR $ "statusCode " ++ show code
   where
-    fun s k t = do
+    getAnswer s k t = do
       env <- get
       getVkDt <- lift $ getVkData s k t
       case getVkDt of
@@ -217,7 +217,6 @@ botsLongPollAPI = do
               getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
           put $ Environment update_id' (userData env)
-          --       lift $ print arr                       -- Delete
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
-          fun s k $ T.pack $ show $ lastUpdate newEnv
+          getAnswer s k $ T.pack $ show $ lastUpdate newEnv

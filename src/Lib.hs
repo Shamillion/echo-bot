@@ -506,10 +506,10 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       _ <- lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
       _ <- lift $ sendKeyboardH obj env
       crntMsngr <- lift currentMessengerH
-      fun <- lift $ case crntMsngr of
+      fromServer <- lift $ case crntMsngr of
         "TG" -> evalStateT getDataH env
         _ -> getDataVk . lastUpdate $ env
-      let arr = case result <$> fun of
+      let arr = case result <$> fromServer of
             Just ls -> ls
             _ -> []
       wordIsRepeatH WorkHandle {..} getDataVk obj arr
@@ -531,14 +531,13 @@ wordIsRepeat ::
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
-wordIsRepeat WorkHandle {..} getDataVk obj [] = do
-  -- getDataVk needed to get
-  env <- get --   updates from VK.
+wordIsRepeat WorkHandle {..} getDataVk obj [] = do  -- getDataVk needed to get updates from VK.   
+  env <- get 
   crntMsngr <- lift currentMessengerH
-  fun <- lift $ case crntMsngr of
+  fromServer <- lift $ case crntMsngr of
     "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
-  let Just newArr = result <$> fun
+  let Just newArr = result <$> fromServer
   wordIsRepeatH WorkHandle {..} getDataVk obj newArr
 wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
@@ -550,8 +549,8 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       newUsrName = username $ chat $ message newObj
       num = if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName -- We check that the message came from the user
-    then
-      ( --  who requested a change in the number of repetitions.
+    then                   --  who requested a change in the number of repetitions.
+      ( 
         if val `elem` ["1", "2", "3", "4", "5"]
           then
             ( do
@@ -615,9 +614,9 @@ question obj env = do
       ]
 
 stringToUrl :: String -> String
-stringToUrl = Prelude.foldl fun ""
+stringToUrl = Prelude.foldl encodingChar ""
   where
-    fun acc c =
+    encodingChar acc c =
       acc ++ case c of
         '{' -> "%7B"
         '}' -> "%7D"
@@ -776,7 +775,9 @@ endlessCycle = do
   obj <- lift $ evalStateT getData env
   let nothing _ = pure Nothing
   case obj of
-    Nothing -> lift $ writingLine ERROR "Broken request!"
+    Nothing -> do
+      lift $ writingLine ERROR "Broken request!"
+      endlessCycle               
     _ -> do
       let arr = case result <$> obj of
             Just [x] -> [x]
