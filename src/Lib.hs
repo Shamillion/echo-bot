@@ -24,6 +24,7 @@ import Data.Aeson
     encode,
     object,
     withObject,
+    (.!=),
     (.:),
     (.:?),
   )
@@ -121,10 +122,14 @@ data MessageDate = MessageDate
   { update_id :: Int,
     message :: Message
   }
-  deriving (Show, Generic, FromJSON)
+  deriving (Show)
 
-errorMessageDate :: MessageDate
-errorMessageDate = MessageDate 0 errorMessage
+instance FromJSON MessageDate where
+  parseJSON (Object v) = do
+    update_id <- v .: "update_id"
+    message <- v .:? "message" .!= errorMessage
+    pure $ MessageDate update_id message
+  parseJSON _ = mempty
 
 data WholeObject = WholeObject
   { ok :: Bool,
@@ -191,7 +196,7 @@ instance FromJSON Media where
 
 -- Data types for the VK keyboard.
 data ActionVk = ActionVk
-  { typeActionVk :: T.Text, 
+  { typeActionVk :: T.Text,
     label :: T.Text
   }
   deriving (Show)
@@ -531,8 +536,9 @@ wordIsRepeat ::
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
-wordIsRepeat WorkHandle {..} getDataVk obj [] = do  -- getDataVk needed to get updates from VK.   
-  env <- get 
+wordIsRepeat WorkHandle {..} getDataVk obj [] = do
+  -- getDataVk needed to get updates from VK.
+  env <- get
   crntMsngr <- lift currentMessengerH
   fromServer <- lift $ case crntMsngr of
     "TG" -> evalStateT getDataH env
@@ -549,22 +555,24 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       newUsrName = username $ chat $ message newObj
       num = if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName -- We check that the message came from the user
-    then                   --  who requested a change in the number of repetitions.
-      ( 
-        if val `elem` ["1", "2", "3", "4", "5"]
+    then --  who requested a change in the number of repetitions.
+
+      ( if val `elem` ["1", "2", "3", "4", "5"]
           then
             ( do
-                _ <- lift $
-                  sendCommentH obj $
-                    "Done! Set up "
-                      ++ T.unpack val
-                      ++ " repeat(s)."
-                _ <- lift $
-                  writingLineH INFO $
-                    "Set up "
-                      ++ T.unpack val
-                      ++ " repeat(s) to "
-                      ++ T.unpack usrName
+                _ <-
+                  lift $
+                    sendCommentH obj $
+                      "Done! Set up "
+                        ++ T.unpack val
+                        ++ " repeat(s)."
+                _ <-
+                  lift $
+                    writingLineH INFO $
+                      "Set up "
+                        ++ T.unpack val
+                        ++ " repeat(s) to "
+                        ++ T.unpack usrName
                 put $
                   Environment
                     (num + update_id newObj)
@@ -777,7 +785,7 @@ endlessCycle = do
   case obj of
     Nothing -> do
       lift $ writingLine ERROR "Broken request!"
-      endlessCycle               
+      endlessCycle
     _ -> do
       let arr = case result <$> obj of
             Just [x] -> [x]

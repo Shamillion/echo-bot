@@ -16,7 +16,7 @@ import Lib
     userData,
     wordIsRepeat,
   )
-import Test.Hspec (describe, hspec, it, shouldBe)
+import Test.Hspec (SpecWith, describe, hspec, it, shouldBe)
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment
@@ -43,11 +43,11 @@ testConfig =
 handlerForTestIfKeyWord :: WorkHandle Identity String String
 handlerForTestIfKeyWord =
   WorkHandle
-    { writingLineH = \x y -> pure "nothing",
-      sendKeyboardH = \x y -> pure "keyboard",
-      sendCommentH = \x y -> pure "comment",
-      sandRepeatsH = \x y -> pure "nothing",
-      wordIsRepeatH = \w x y z -> pure "/repeat",
+    { writingLineH = \_ _ -> pure "nothing",
+      sendKeyboardH = \_ _ -> pure "keyboard",
+      sendCommentH = \_ _ -> pure "comment",
+      sandRepeatsH = \_ _ -> pure "nothing",
+      wordIsRepeatH = \_ _ _ _ -> pure "/repeat",
       currentMessengerH = pure "no matter",
       configurationH = pure testConfig,
       getDataH = pure Nothing,
@@ -59,13 +59,13 @@ handlerForTestIfKeyWord =
 handlerForTestWordIsRepeat :: WorkHandle Identity String String
 handlerForTestWordIsRepeat =
   handlerForTestIfKeyWord
-    { wordIsRepeatH = \w x y z -> pure "Another user || empty array",
+    { wordIsRepeatH = \_ _ _ _ -> pure "Another user || empty array",
       pureOne = pure "Number from 1 to 5",
       pureTwo = pure "Not number from 1 to 5"
     }
 
 nothing :: Int -> Identity (Maybe WholeObject)
-nothing num = pure Nothing
+nothing _ = pure Nothing
 
 messageDate :: T.Text -> T.Text -> MessageDate
 messageDate usr txt =
@@ -127,6 +127,7 @@ testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
       )
       environmentT
 
+testsFunctionIfKeyWord :: SpecWith ()
 testsFunctionIfKeyWord = do
   it "catch the /help" $
     testingFunctionIfKeyWord "/help" `shouldBe` "/help"
@@ -137,6 +138,7 @@ testsFunctionIfKeyWord = do
   it "catch the others" $
     verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x : xs)) == "anything"
 
+testsFunctionWordIsRepeat :: SpecWith ()
 testsFunctionWordIsRepeat = do
   it "catch the number from 1 to 5" $ do
     testingFunctionWordIsRepeat "Tony" "Tony" "1" `shouldBe` "Number from 1 to 5"
