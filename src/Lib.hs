@@ -45,13 +45,6 @@ import Network.HTTP.Simple
     httpLBS,
     parseRequest_,
   )
-import System.IO
-  ( Handle,
-    IOMode (AppendMode),
-    hFlush,
-    hPutStrLn,
-    openFile,
-  )
 import System.Random (Random (randomRIO))
 
 -- Data type for the logger.
@@ -250,9 +243,9 @@ keyboardVk =
 time :: IO String
 time = take 19 . show <$> getCurrentTime
 
--- Getting Handle for the logfile.
-file :: IO Handle
-file = openFile "../log.log" AppendMode
+-- Name of the logfile.
+logFile :: String
+logFile = "log.log"
 
 -- Function writes information to log.
 writingLine :: Priority -> String -> IO ()
@@ -264,10 +257,7 @@ writingLine lvl str = do
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
       out <- logOutput <$> configuration
       case out of
-        "file" -> do
-          file' <- file
-          hPutStrLn file' string
-          hFlush file'
+        "file" -> appendFile logFile string  
         _ -> print string
     else pure ()
   where
@@ -288,9 +278,7 @@ getConfiguration fileName = do
     Left e -> do
       let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ e
       print str
-      file' <- file
-      hPutStrLn file' str
-      hFlush file'
+      appendFile logFile str  
       pure obj
 
 -- The object is used when the configuration file is read unsuccessfully.
