@@ -23,7 +23,7 @@ To deploy the project, you need to perform the following steps:
     - "hostVK"    : "api.vk.com"                 - vkontakte host,
     - "tokenTG"   : "23654???????:??????????"    - telegram token issued when creating a bot in telegram,
     - "tokenVK"   : "23654???????:??????????"    - vkontakte group token,
-    - "groupIdVK" : 000000000                    - id of the vkontakte group.
+    - "groupIdVK" : 123456789                    - id of the vkontakte group.
    and save the file.
    You also may change other parameters. The values of the rest parameters will be given below.
    
@@ -48,6 +48,49 @@ stack run
 ```
 To stop the bot operation, press **Ctrl + C** in the terminal where the bot was started.
 
+## Commands for the bot
+
+The bot understands the following commands:
+    - **/help**       - informational message,
+    - **/repeat**     - calling the keyboard to change the number of repetitions. 
+
 ## Settings in config.json
 
-. . . . . . . 
+```haskell
+{
+  "messenger" : "TG",                  -- the messenger that you are going to use at the moment,
+  "comment_messenger" : "TG || VK",    -- possible values of the "messenger" field (Telegram or Vkontakte),         
+  "hostTG"    : "api.telegram.org",    -- Telegram host issued when creating a bot in Telegram,
+  "hostVK"    : "api.vk.com",          -- Vkontakte host,
+  "tokenTG"   : "23654???????:??????????"    -- Telegram token issued when creating a bot in Telegram,
+  "tokenVK"   : "23654???????:??????????"    -- Vkontakte group token,
+  "groupIdVK" : 123456789              -- id of the Vkontakte group,
+  "apiVKVersion" : "5.130",            -- the version of the api for Vkontakte (the bot has been tested with version 5.130),
+  "helpMess"  : [ "This is an echobot.\n",
+                  "It repeats your messages a certain number of times.\n",
+                  "The number of repetitions can be changed by entering", 
+                  " command /repeat."
+                ],                      -- the message displayed when the bot receives the "/help" command,
+  "repeatMess"     : "How many reps do you want to set?",    -- the message displayed when the bot receives the "/repeat" command,
+  "defaultRepeats" : 2,                 -- default number of repetitions,
+  "priorityLevel"   : "DEBUG",          -- logging level.
+  "comment_priorityLevel" : "DEBUG || INFO || WARNING || ERROR",    -- possible logging levels.
+  "logOutput"       : "cons",           -- the place where the logs will be output.
+  "comment_logOutput" : "file || cons"  -- possible log output locations (file or console).
+}
+```  
+
+## Basic project structure
+
+```haskell
+echo-bot                       -- the root folder of the project.
+  ├── app
+  │   └── Main.hs
+  ├── config.json              -- bot settings file.
+  ├── log.log                  -- file for bot logs.
+  ├── src
+  │   ├── Lib.hs               -- the main functions for the bot to work.
+  │   └── Vk.hs                -- functions for working with Vkontakte.
+  └── test
+      └── Spec.hs              -- tests for bot.
+```
