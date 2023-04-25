@@ -51,8 +51,8 @@ To stop the bot operation, press **Ctrl + C** in the terminal where the bot was 
 ## Commands for the bot
 
 The bot understands the following commands:
-    - **/help**       - informational message,
-    - **/repeat**     - calling the keyboard to change the number of repetitions. 
+- **/help**       - informational message,
+- **/repeat**     - calling the keyboard to change the number of repetitions. 
 
 ## Settings in config.json
 
@@ -73,9 +73,9 @@ The bot understands the following commands:
                 ],                      -- the message displayed when the bot receives the "/help" command,
   "repeatMess"     : "How many reps do you want to set?",    -- the message displayed when the bot receives the "/repeat" command,
   "defaultRepeats" : 2,                 -- default number of repetitions,
-  "priorityLevel"   : "DEBUG",          -- logging level.
+  "priorityLevel"  : "DEBUG",           -- logging level.
   "comment_priorityLevel" : "DEBUG || INFO || WARNING || ERROR",    -- possible logging levels.
-  "logOutput"       : "cons",           -- the place where the logs will be output.
+  "logOutput"      : "cons",            -- the place where the logs will be output.
   "comment_logOutput" : "file || cons"  -- possible log output locations (file or console).
 }
 ```  
