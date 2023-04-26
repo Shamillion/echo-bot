@@ -257,7 +257,7 @@ writingLine lvl str = do
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
       out <- logOutput <$> configuration
       case out of
-        "file" -> appendFile logFile string
+        "file" -> appendFile logFile $ string ++ "\n"
         _ -> print string
     else pure ()
   where
@@ -278,7 +278,7 @@ getConfiguration fileName = do
     Left e -> do
       let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ e
       print str
-      appendFile logFile str
+      appendFile logFile $ str ++ "\n"
       pure obj
 
 -- The object is used when the configuration file is read unsuccessfully.
