@@ -10,6 +10,7 @@ import Lib
     MessageDate (..),
     NumRepeats,
     Priority (ERROR),
+    UpdateID (..),
     WholeObject (..),
     WorkHandle (..),
     ifKeyWord,
@@ -64,7 +65,7 @@ handlerForTestWordIsRepeat =
       pureTwo = pure "Not number from 1 to 5"
     }
 
-nothing :: Int -> Identity (Maybe WholeObject)
+nothing :: UpdateID -> Identity (Maybe WholeObject)
 nothing _ = pure Nothing
 
 messageDate :: T.Text -> T.Text -> MessageDate

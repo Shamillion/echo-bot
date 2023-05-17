@@ -112,16 +112,16 @@ errorMessage =
     }
 
 data MessageDate = MessageDate
-  { update_id :: Int,
+  { update_id :: UpdateID,
     message :: Message
   }
   deriving (Show)
 
 instance FromJSON MessageDate where
   parseJSON (Object v) = do
-    update_id <- v .: "update_id"
+    num <- v .: "update_id"
     message <- v .:? "message" .!= errorMessage
-    pure $ MessageDate update_id message
+    pure $ MessageDate (UpdateID num) message
   parseJSON _ = mempty
 
 data WholeObject = WholeObject
@@ -337,8 +337,8 @@ logLevel :: IO Priority
 logLevel = priorityLevel <$> configuration
 
 -- Update request string for Telegram.
-createStringGetUpdates :: Int -> String
-createStringGetUpdates num =
+createStringGetUpdates :: UpdateID -> String
+createStringGetUpdates (UpdateID num) =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 -- Request generation.
@@ -457,7 +457,7 @@ data WorkHandle m a b = WorkHandle
     sandRepeatsH :: MessageDate -> Environment -> m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
-      (Int -> m (Maybe WholeObject)) ->
+      (UpdateID -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m a,
@@ -488,7 +488,7 @@ handler =
 ifKeyWord ::
   Monad m =>
   WorkHandle m a b ->
-  (Int -> m (Maybe WholeObject)) ->
+  (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
 ifKeyWord WorkHandle {..} getDataVk obj = do
@@ -520,7 +520,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
-  (Int -> m (Maybe WholeObject)) ->
+  (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
@@ -541,7 +541,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       Just val = textM $ message newObj
       usrName = username $ chat $ message obj
       newUsrName = username $ chat $ message newObj
-      num = if crntMsngr == "TG" then 1 else 0
+      num = UpdateID $ if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
@@ -679,7 +679,19 @@ sendComment obj str = do
   writingLine DEBUG $ show string
   httpLBS string
 
-type UpdateID = Int
+newtype UpdateID = UpdateID Int
+  deriving (Eq)
+
+instance Show UpdateID where
+  show (UpdateID a) = show a
+
+instance Num UpdateID where
+  UpdateID a + UpdateID b = UpdateID $ a + b
+  UpdateID a * UpdateID b = UpdateID $ a * b
+  abs (UpdateID a) = UpdateID $ abs a
+  signum (UpdateID a) = UpdateID $ signum a
+  fromInteger integer = UpdateID $ fromInteger integer
+  negate (UpdateID a) = UpdateID $ negate a
 
 type Username = T.Text
 
@@ -736,7 +748,7 @@ getData = do
           let obj = decode $ getResponseBody x
           case result <$> obj of
             Just [] -> do
-              put $ Environment 1 (userData env)
+              put $ Environment (UpdateID 1) (userData env)
               getData
             _ -> do
               pure obj
@@ -757,12 +769,12 @@ firstUpdateIDSession = do
       lift $ getCurrentTime >>= print
       lift $ print ("Connection established" :: String)
       let update_id' = case result <$> obj of
-            Just [] -> 0
+            Just [] -> UpdateID 0
             Just md -> (\(x : _) -> update_id x) (reverse md)
-            _ -> 0
-      if lastUpdate newEnv == 1
+            _ -> UpdateID 0
+      if lastUpdate newEnv == UpdateID 1
         then put $ Environment update_id' (userData newEnv)
-        else put $ Environment (1 + update_id') (userData newEnv)
+        else put $ Environment (UpdateID 1 + update_id') (userData newEnv)
 
 -- Main program cycle for Telegram.
 endlessCycle :: StateT Environment IO ()
@@ -778,8 +790,8 @@ endlessCycle = do
       let arr = case result <$> obj of
             Just [x] -> [x]
             _ -> []
-          update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-      put $ Environment (1 + update_id') (userData env)
+          update_id' = if null arr then UpdateID 0 else (\(x : _) -> update_id x) (reverse arr)
+      put $ Environment (UpdateID 1 + update_id') (userData env)
       _ <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle
