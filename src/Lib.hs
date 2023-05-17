@@ -438,7 +438,7 @@ sandRepeats obj env = do
           "&message_id=",
           messageId
         ]
-  num <- getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
+  NumRepeats num <- getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
   replicateM_ num $ -- Repeat the action num times.
     case crntMsngr of
       "TG" -> do
@@ -539,8 +539,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message newObj
-      usrName = username $ chat $ message obj
-      newUsrName = username $ chat $ message newObj
+      usrNameText = username . chat . message $ obj
+      usrName = Username usrNameText
+      newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
@@ -560,13 +561,13 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                       "Set up "
                         ++ T.unpack val
                         ++ " repeat(s) to "
-                        ++ T.unpack usrName
+                        ++ T.unpack usrNameText
                 put $
                   Environment
                     (num + update_id newObj)
                     ( Map.insert
                         usrName
-                        (read $ T.unpack val)
+                        (NumRepeats . read . T.unpack $ val)
                         (userData env)
                     )
                 pureOne
@@ -693,26 +694,31 @@ instance Num UpdateID where
   fromInteger integer = UpdateID $ fromInteger integer
   negate (UpdateID a) = UpdateID $ negate a
 
-type Username = T.Text
+newtype Username = Username T.Text
+  deriving (Eq, Ord)
 
-type NumRepeats = Int
+newtype NumRepeats = NumRepeats Int
+  deriving (Eq, Show)
 
 data Environment = Environment
   { lastUpdate :: UpdateID,
     userData :: Map.Map Username NumRepeats
   }
 
-getNumRepeats :: MessageDate -> Environment -> IO Int
+getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
   conf <- configuration
   pure $ case Map.lookup usrName $ userData env of
-    Nothing -> defaultRepeats conf
+    Nothing -> NumRepeats $ defaultRepeats conf
     Just n -> n
   where
-    usrName = username $ chat $ message obj
+    usrName = Username . username $ chat $ message obj
 
 environment :: IO Environment
-environment = Environment 0 . Map.singleton "" . defaultRepeats <$> configuration
+environment =
+  (Environment (UpdateID 0) . Map.singleton (Username "") . NumRepeats)
+    . defaultRepeats
+    <$> configuration
 
 -- Function for connecting to the server.
 connection :: Request -> Int -> IO (Response LC.ByteString)

@@ -8,9 +8,10 @@ import Lib
     Environment (..),
     Message (..),
     MessageDate (..),
-    NumRepeats,
+    NumRepeats (..),
     Priority (ERROR),
     UpdateID (..),
+    Username (..),
     WholeObject (..),
     WorkHandle (..),
     ifKeyWord,
@@ -21,7 +22,7 @@ import Test.Hspec (SpecWith, describe, hspec, it, shouldBe)
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment
-environmentT = Environment 0 $ Map.singleton "" 3
+environmentT = Environment (UpdateID 0) $ Map.singleton (Username "") (NumRepeats 3)
 
 testConfig :: Configuration
 testConfig =
@@ -104,7 +105,7 @@ testingFunctionWordIsRepeat usr1 usr2 txt =
 
 testingFunctionWordIsRepeat' :: T.Text -> T.Text -> T.Text -> Maybe NumRepeats
 testingFunctionWordIsRepeat' usr1 usr2 txt =
-  Map.lookup usr1 $
+  Map.lookup (Username usr1) $
     userData $
       runIdentity $
         execStateT
@@ -146,9 +147,9 @@ testsFunctionWordIsRepeat = do
     testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` "Number from 1 to 5"
     testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` "Number from 1 to 5"
 
-    testingFunctionWordIsRepeat' "Tony" "Tony" "1" `shouldBe` Just 1
-    testingFunctionWordIsRepeat' "Tony" "Tony" "3" `shouldBe` Just 3
-    testingFunctionWordIsRepeat' "Tony" "Tony" "5" `shouldBe` Just 5
+    testingFunctionWordIsRepeat' "Tony" "Tony" "1" `shouldBe` Just (NumRepeats 1)
+    testingFunctionWordIsRepeat' "Tony" "Tony" "3" `shouldBe` Just (NumRepeats 3)
+    testingFunctionWordIsRepeat' "Tony" "Tony" "5" `shouldBe` Just (NumRepeats 5)
 
   it "the number is not from 1 to 5" $ do
     testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` "Not number from 1 to 5"
