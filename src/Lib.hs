@@ -112,16 +112,16 @@ errorMessage =
     }
 
 data MessageDate = MessageDate
-  { update_id :: Int,
+  { update_id :: UpdateID,
     message :: Message
   }
   deriving (Show)
 
 instance FromJSON MessageDate where
   parseJSON (Object v) = do
-    update_id <- v .: "update_id"
+    num <- v .: "update_id"
     message <- v .:? "message" .!= errorMessage
-    pure $ MessageDate update_id message
+    pure $ MessageDate (UpdateID num) message
   parseJSON _ = mempty
 
 data WholeObject = WholeObject
@@ -337,8 +337,8 @@ logLevel :: IO Priority
 logLevel = priorityLevel <$> configuration
 
 -- Update request string for Telegram.
-createStringGetUpdates :: Int -> String
-createStringGetUpdates num =
+createStringGetUpdates :: UpdateID -> String
+createStringGetUpdates (UpdateID num) =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 -- Request generation.
@@ -438,7 +438,7 @@ sandRepeats obj env = do
           "&message_id=",
           messageId
         ]
-  num <- getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
+  NumRepeats num <- getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
   replicateM_ num $ -- Repeat the action num times.
     case crntMsngr of
       "TG" -> do
@@ -457,7 +457,7 @@ data WorkHandle m a b = WorkHandle
     sandRepeatsH :: MessageDate -> Environment -> m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
-      (Int -> m (Maybe WholeObject)) ->
+      (UpdateID -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m a,
@@ -488,7 +488,7 @@ handler =
 ifKeyWord ::
   Monad m =>
   WorkHandle m a b ->
-  (Int -> m (Maybe WholeObject)) ->
+  (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m a
 ifKeyWord WorkHandle {..} getDataVk obj = do
@@ -520,7 +520,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
-  (Int -> m (Maybe WholeObject)) ->
+  (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m a
@@ -539,9 +539,10 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
       Just val = textM $ message newObj
-      usrName = username $ chat $ message obj
-      newUsrName = username $ chat $ message newObj
-      num = if crntMsngr == "TG" then 1 else 0
+      usrNameText = username . chat . message $ obj
+      usrName = Username usrNameText
+      newUsrName = Username . username . chat . message $ newObj
+      num = UpdateID $ if crntMsngr == "TG" then 1 else 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
@@ -560,13 +561,13 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                       "Set up "
                         ++ T.unpack val
                         ++ " repeat(s) to "
-                        ++ T.unpack usrName
+                        ++ T.unpack usrNameText
                 put $
                   Environment
                     (num + update_id newObj)
                     ( Map.insert
                         usrName
-                        (read $ T.unpack val)
+                        (NumRepeats . read . T.unpack $ val)
                         (userData env)
                     )
                 pureOne
@@ -679,28 +680,45 @@ sendComment obj str = do
   writingLine DEBUG $ show string
   httpLBS string
 
-type UpdateID = Int
+newtype UpdateID = UpdateID Int
+  deriving (Eq)
 
-type Username = T.Text
+instance Show UpdateID where
+  show (UpdateID a) = show a
 
-type NumRepeats = Int
+instance Num UpdateID where
+  UpdateID a + UpdateID b = UpdateID $ a + b
+  UpdateID a * UpdateID b = UpdateID $ a * b
+  abs (UpdateID a) = UpdateID $ abs a
+  signum (UpdateID a) = UpdateID $ signum a
+  fromInteger integer = UpdateID $ fromInteger integer
+  negate (UpdateID a) = UpdateID $ negate a
+
+newtype Username = Username T.Text
+  deriving (Eq, Ord)
+
+newtype NumRepeats = NumRepeats Int
+  deriving (Eq, Show)
 
 data Environment = Environment
   { lastUpdate :: UpdateID,
     userData :: Map.Map Username NumRepeats
   }
 
-getNumRepeats :: MessageDate -> Environment -> IO Int
+getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
   conf <- configuration
   pure $ case Map.lookup usrName $ userData env of
-    Nothing -> defaultRepeats conf
+    Nothing -> NumRepeats $ defaultRepeats conf
     Just n -> n
   where
-    usrName = username $ chat $ message obj
+    usrName = Username . username $ chat $ message obj
 
 environment :: IO Environment
-environment = Environment 0 . Map.singleton "" . defaultRepeats <$> configuration
+environment =
+  (Environment (UpdateID 0) . Map.singleton (Username "") . NumRepeats)
+    . defaultRepeats
+    <$> configuration
 
 -- Function for connecting to the server.
 connection :: Request -> Int -> IO (Response LC.ByteString)
@@ -736,7 +754,7 @@ getData = do
           let obj = decode $ getResponseBody x
           case result <$> obj of
             Just [] -> do
-              put $ Environment 1 (userData env)
+              put $ Environment (UpdateID 1) (userData env)
               getData
             _ -> do
               pure obj
@@ -757,12 +775,12 @@ firstUpdateIDSession = do
       lift $ getCurrentTime >>= print
       lift $ print ("Connection established" :: String)
       let update_id' = case result <$> obj of
-            Just [] -> 0
+            Just [] -> UpdateID 0
             Just md -> (\(x : _) -> update_id x) (reverse md)
-            _ -> 0
-      if lastUpdate newEnv == 1
+            _ -> UpdateID 0
+      if lastUpdate newEnv == UpdateID 1
         then put $ Environment update_id' (userData newEnv)
-        else put $ Environment (1 + update_id') (userData newEnv)
+        else put $ Environment (UpdateID 1 + update_id') (userData newEnv)
 
 -- Main program cycle for Telegram.
 endlessCycle :: StateT Environment IO ()
@@ -778,8 +796,8 @@ endlessCycle = do
       let arr = case result <$> obj of
             Just [x] -> [x]
             _ -> []
-          update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-      put $ Environment (1 + update_id') (userData env)
+          update_id' = if null arr then UpdateID 0 else (\(x : _) -> update_id x) (reverse arr)
+      put $ Environment (UpdateID 1 + update_id') (userData env)
       _ <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle

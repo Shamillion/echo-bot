@@ -24,6 +24,7 @@ import Lib
     Message (..),
     MessageDate (..),
     Priority (DEBUG, ERROR),
+    UpdateID (..),
     WholeObject (..),
     configuration,
     connection,
@@ -115,9 +116,9 @@ wholeObjectVk obj = do
         result = ls
       }
   where
-    num = read $ T.unpack $ offset obj
+    num = UpdateID $ read $ T.unpack $ offset obj
 
-messageDateVk :: Int -> Updates -> IO MessageDate
+messageDateVk :: UpdateID -> Updates -> IO MessageDate
 messageDateVk num obj = do
   messageFromVk' <- messageFromVk obj
   pure $
