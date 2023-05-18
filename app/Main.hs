@@ -17,11 +17,11 @@ main = do
   conf <- configuration
   env <- environment
   case messenger conf of
-    "Error" -> print ("Check out config.json" :: String)
+    "Error" -> putStrLn "Check out config.json"
     "TG" -> do
-      mapM_ (\f -> f "Started Telegram echobot.") [print, writingLine INFO]
+      mapM_ (\f -> f "Started Telegram echobot.") [putStrLn, writingLine INFO]
       newEnv <- execStateT firstUpdateIDSession env
       evalStateT endlessCycle newEnv
     _ -> do
-      mapM_ (\f -> f "Started VK echobot.") [print, writingLine INFO]
+      mapM_ (\f -> f "Started VK echobot.") [putStrLn, writingLine INFO]
       evalStateT botsLongPollAPI env
