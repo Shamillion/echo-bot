@@ -425,8 +425,8 @@ attachment (x : xs) userId = case x of
             ]
 
 -- Sending repetitions of request for Telegram.
-sandRepeats :: MessageDate -> Environment -> IO ()
-sandRepeats obj env = do
+sendRepeats :: MessageDate -> Environment -> IO ()
+sendRepeats obj env = do
   crntMsngr <- currentMessenger
   string <-
     stringRequest $
@@ -454,7 +454,7 @@ data WorkHandle m a b = WorkHandle
   { writingLineH :: Priority -> String -> m a,
     sendKeyboardH :: MessageDate -> Environment -> m b,
     sendCommentH :: MessageDate -> String -> m b,
-    sandRepeatsH :: MessageDate -> Environment -> m a,
+    sendRepeatsH :: MessageDate -> Environment -> m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
       (UpdateID -> m (Maybe WholeObject)) ->
@@ -475,7 +475,7 @@ handler =
     { writingLineH = writingLine,
       sendKeyboardH = sendKeyboard,
       sendCommentH = sendComment,
-      sandRepeatsH = sandRepeats,
+      sendRepeatsH = sendRepeats,
       wordIsRepeatH = wordIsRepeat,
       currentMessengerH = currentMessenger,
       configurationH = configuration,
@@ -513,7 +513,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
         sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
       pureOne
     _ -> do
-      _ <- lift $ sandRepeatsH obj env
+      _ <- lift $ sendRepeatsH obj env
       pureTwo
 
 -- Changing the number of repetitions.
@@ -574,7 +574,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
             )
           else
             ( do
-                _ <- lift $ sandRepeatsH newObj newEnv
+                _ <- lift $ sendRepeatsH newObj newEnv
                 put newEnv
                 pureTwo
             )
@@ -730,15 +730,15 @@ connection req num = do
       writingLine ERROR $ show (e :: HttpException)
       when (num == 0) $ do
         getCurrentTime >>= print
-        print ("Connection Failure" :: String)
-        print ("Trying to set a connection... " :: String)
+        putStrLn "Connection Failure"
+        putStrLn "Trying to set a connection... "
       threadDelay 1000000
       connection req (num + 1)
     Right v -> do
       writingLine DEBUG $ show v
       when (num /= 0) $ do
         getCurrentTime >>= print
-        print ("Connection restored" :: String)
+        putStrLn "Connection restored"
       pure v
 
 -- Function for getting data from Telegram's server.
@@ -773,7 +773,7 @@ firstUpdateIDSession = do
     Nothing -> pure ()
     _ -> do
       lift $ getCurrentTime >>= print
-      lift $ print ("Connection established" :: String)
+      lift $ putStrLn "Connection established"
       let update_id' = case result <$> obj of
             Just [] -> UpdateID 0
             Just md -> (\(x : _) -> update_id x) (reverse md)
