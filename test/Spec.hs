@@ -22,7 +22,7 @@ import Test.Hspec (SpecWith, describe, hspec, it, shouldBe)
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment
-environmentT = Environment (UpdateID 0) $ Map.singleton (Username "") (NumRepeats 3)
+environmentT = Environment 0 $ Map.singleton "" (NumRepeats 3)
 
 testConfig :: Configuration
 testConfig =
