@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DerivingVia #-}
 
 module Lib where
 
@@ -33,6 +34,7 @@ import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Foldable (asum)
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Map.Lazy as Map
+import Data.String (IsString)
 import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
@@ -682,20 +684,14 @@ sendComment obj str = do
 
 newtype UpdateID = UpdateID Int
   deriving (Eq)
+  deriving (Num) via Int
 
 instance Show UpdateID where
   show (UpdateID a) = show a
 
-instance Num UpdateID where
-  UpdateID a + UpdateID b = UpdateID $ a + b
-  UpdateID a * UpdateID b = UpdateID $ a * b
-  abs (UpdateID a) = UpdateID $ abs a
-  signum (UpdateID a) = UpdateID $ signum a
-  fromInteger integer = UpdateID $ fromInteger integer
-  negate (UpdateID a) = UpdateID $ negate a
-
 newtype Username = Username T.Text
   deriving (Eq, Ord)
+  deriving (IsString) via T.Text
 
 newtype NumRepeats = NumRepeats Int
   deriving (Eq, Show)
@@ -716,7 +712,7 @@ getNumRepeats obj env = do
 
 environment :: IO Environment
 environment =
-  (Environment (UpdateID 0) . Map.singleton (Username "") . NumRepeats)
+  (Environment 0 . Map.singleton "" . NumRepeats)
     . defaultRepeats
     <$> configuration
 
@@ -754,7 +750,7 @@ getData = do
           let obj = decode $ getResponseBody x
           case result <$> obj of
             Just [] -> do
-              put $ Environment (UpdateID 1) (userData env)
+              put $ Environment 1 (userData env)
               getData
             _ -> do
               pure obj
@@ -775,12 +771,12 @@ firstUpdateIDSession = do
       lift $ getCurrentTime >>= print
       lift $ putStrLn "Connection established"
       let update_id' = case result <$> obj of
-            Just [] -> UpdateID 0
+            Just [] -> 0
             Just md -> (\(x : _) -> update_id x) (reverse md)
-            _ -> UpdateID 0
-      if lastUpdate newEnv == UpdateID 1
+            _ -> 0
+      if lastUpdate newEnv == 1
         then put $ Environment update_id' (userData newEnv)
-        else put $ Environment (UpdateID 1 + update_id') (userData newEnv)
+        else put $ Environment (1 + update_id') (userData newEnv)
 
 -- Main program cycle for Telegram.
 endlessCycle :: StateT Environment IO ()
@@ -796,8 +792,8 @@ endlessCycle = do
       let arr = case result <$> obj of
             Just [x] -> [x]
             _ -> []
-          update_id' = if null arr then UpdateID 0 else (\(x : _) -> update_id x) (reverse arr)
-      put $ Environment (UpdateID 1 + update_id') (userData env)
+          update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
+      put $ Environment (1 + update_id') (userData env)
       _ <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle
