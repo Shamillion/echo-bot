@@ -48,6 +48,7 @@ import Network.HTTP.Simple
     parseRequest_,
   )
 import System.Random (Random (randomRIO))
+import Text.Read (readMaybe)
 
 -- Data type for the logger.
 data Priority = DEBUG | INFO | WARNING | ERROR
@@ -533,35 +534,43 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do
   fromServer <- lift $ case crntMsngr of
     "TG" -> evalStateT getDataH env
     _ -> getDataVk . lastUpdate $ env
-  let Just newArr = result <$> fromServer
+  newArr <- lift $
+    case result <$> fromServer of
+      Just n -> pure n
+      Nothing ->
+        writingLineH ERROR "The array of messages is missing"
+          >> pure [MessageDate 0 errorMessage]
   wordIsRepeatH WorkHandle {..} getDataVk obj newArr
 wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
   crntMsngr <- lift currentMessengerH
   let newObj = x
       newEnv = Environment (num + update_id newObj) (userData env)
-      Just val = textM $ message newObj
       usrNameText = username . chat . message $ obj
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if crntMsngr == "TG" then 1 else 0
+  val <- lift $ ------------------------------------------
+    case textM (message newObj) >>= readMaybe . T.unpack of
+      Just n -> pure n
+      Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
-      ( if val `elem` ["1", "2", "3", "4", "5"]
+      ( if val `elem` [1 .. 5]
           then
             ( do
                 _ <-
                   lift $
                     sendCommentH obj $
                       "Done! Set up "
-                        ++ T.unpack val
+                        ++ show val
                         ++ " repeat(s)."
                 _ <-
                   lift $
                     writingLineH INFO $
                       "Set up "
-                        ++ T.unpack val
+                        ++ show val
                         ++ " repeat(s) to "
                         ++ T.unpack usrNameText
                 put $
@@ -569,7 +578,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                     (num + update_id newObj)
                     ( Map.insert
                         usrName
-                        (NumRepeats . read . T.unpack $ val)
+                        (NumRepeats val)
                         (userData env)
                     )
                 pureOne
