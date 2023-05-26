@@ -47,6 +47,7 @@ import Network.HTTP.Simple
     httpLBS,
     parseRequest_,
   )
+import System.Exit (die)
 import System.Random (Random (randomRIO))
 import Text.Read (readMaybe)
 
@@ -270,45 +271,18 @@ writingLine lvl str = do
       WARNING -> "WARNING"
       ERROR -> "ERROR  "
 
--- Getting information from file.
-getConfiguration :: String -> IO (Either String Configuration)
-getConfiguration fileName = do
-  t <- time
-  content <- L.readFile fileName
-  let obj = eitherDecode content
-  case obj of
-    Right _ -> pure obj
-    Left e -> do
-      let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ e
-      print str
-      appendFile logFile $ str ++ "\n"
-      pure obj
-
--- The object is used when the configuration file is read unsuccessfully.
-errorConfig :: Configuration
-errorConfig =
-  Configuration
-    { messenger = "Error",
-      hostTG = "Error",
-      hostVK = "Error",
-      tokenTG = "Error",
-      tokenVK = "Error",
-      groupIdVK = 0,
-      apiVKVersion = "Error",
-      helpMess = ["Error"],
-      repeatMess = "Error",
-      defaultRepeats = 0,
-      priorityLevel = ERROR,
-      logOutput = "cons"
-    }
-
--- Trying to read configuration file.
+-- Getting information from configuration file.
 configuration :: IO Configuration
 configuration = do
-  getConf <- getConfiguration "config.json"
-  pure $ case getConf of
-    Right v -> v
-    _ -> errorConfig
+  t <- time
+  content <- L.readFile "config.json"
+  case eitherDecode content of
+    Right conf -> pure conf
+    Left err -> do
+      let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ err
+      print str
+      appendFile logFile $ str ++ "\n"
+      die "Error reading the configuration file! Check out config.json!"
 
 -- Selected messenger.
 currentMessenger :: IO T.Text
@@ -550,7 +524,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if crntMsngr == "TG" then 1 else 0
-  val <- lift $ ------------------------------------------
+  val <- lift $
     case textM (message newObj) >>= readMaybe . T.unpack of
       Just n -> pure n
       Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0

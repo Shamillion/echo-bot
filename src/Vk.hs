@@ -173,7 +173,7 @@ getVkData s k t = do
         T.unpack $
           mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
 
-getLongPollServerRequest :: IO Request -------------
+getLongPollServerRequest :: IO Request
 getLongPollServerRequest = do
   conf <- configuration
   myHost' <- myHost
