@@ -40,6 +40,7 @@ import Network.HTTP.Simple
     getResponseStatusCode,
     parseRequest_,
   )
+import Text.Read (readEither)
 
 -- Data types for VK answer on getLongPollServer request.
 data VkKeyServerTs = VkKeyServerTs
@@ -109,14 +110,16 @@ instance FromJSON MessageVK where
 -- Functions for converting VK's data to Telegrams's data.
 wholeObjectVk :: VkData -> IO WholeObject
 wholeObjectVk obj = do
+  num <-
+    UpdateID <$> case readEither . T.unpack . offset $ obj of
+      Right n -> pure n
+      Left e -> writingLine ERROR e >> pure 0
   ls <- mapM (messageDateVk num) $ updates obj
   pure $
     WholeObject
       { ok = True,
         result = ls
       }
-  where
-    num = UpdateID $ read $ T.unpack $ offset obj
 
 messageDateVk :: UpdateID -> Updates -> IO MessageDate
 messageDateVk num obj = do
