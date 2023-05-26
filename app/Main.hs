@@ -2,9 +2,8 @@ module Main where
 
 import Control.Monad.State.Lazy (evalStateT, execStateT)
 import Lib
-  ( Configuration (messenger),
-    Priority (INFO),
-    configuration,
+  ( Priority (INFO),
+    currentMessenger,
     endlessCycle,
     environment,
     firstUpdateIDSession,
@@ -14,10 +13,9 @@ import Vk (botsLongPollAPI)
 
 main :: IO ()
 main = do
-  conf <- configuration
+  crntMsngr <- currentMessenger
   env <- environment
-  case messenger conf of
-    "Error" -> putStrLn "Check out config.json"
+  case crntMsngr of
     "TG" -> do
       mapM_ (\f -> f "Started Telegram echobot.") [putStrLn, writingLine INFO]
       newEnv <- execStateT firstUpdateIDSession env
