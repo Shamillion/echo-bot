@@ -426,48 +426,47 @@ sendRepeats obj env = do
     messageId = show $ message_id $ message obj
     chatId = show $ chat_id $ chat $ message obj
 
+data Command = Repeat Int | Help | Report String | Nullary
+  deriving (Eq, Show)
+
 -- Handle Pattern
-data WorkHandle m a b = WorkHandle
-  { writingLineH :: Priority -> String -> m a,
-    sendKeyboardH :: MessageDate -> Environment -> m b,
-    sendCommentH :: MessageDate -> String -> m b,
-    sendRepeatsH :: MessageDate -> Environment -> m a,
+data WorkHandle m a = WorkHandle
+  { writingLineH :: Priority -> String -> m Command,
+    sendKeyboardH :: MessageDate -> Environment -> m a,
+    sendCommentH :: MessageDate -> String -> m a,
+    sendRepeatsH :: MessageDate -> Environment -> m Command,
     wordIsRepeatH ::
-      WorkHandle m a b ->
+      WorkHandle m a ->
       (UpdateID -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
-      StateT Environment m a,
+      StateT Environment m Command,
     currentMessengerH :: m T.Text,
     configurationH :: m Configuration,
-    getDataH :: StateT Environment m (Maybe WholeObject),
-    pureOne :: StateT Environment m a,
-    pureTwo :: StateT Environment m a
+    getDataH :: StateT Environment m (Maybe WholeObject)
   }
 
 -- Handle for work of echobot.
-handler :: WorkHandle IO () (Response LC.ByteString)
+handler :: WorkHandle IO (Response LC.ByteString)
 handler =
   WorkHandle
-    { writingLineH = writingLine,
+    { writingLineH = \prt str -> writingLine prt str >> pure Nullary,
       sendKeyboardH = sendKeyboard,
       sendCommentH = sendComment,
-      sendRepeatsH = sendRepeats,
+      sendRepeatsH = \md env -> sendRepeats md env >> pure Nullary,
       wordIsRepeatH = wordIsRepeat,
       currentMessengerH = currentMessenger,
       configurationH = configuration,
-      getDataH = getData,
-      pureOne = pure (),
-      pureTwo = pure ()
+      getDataH = getData
     }
 
 -- Keyword search and processing.
 ifKeyWord ::
   Monad m =>
-  WorkHandle m a b ->
+  WorkHandle m a ->
   (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
-  StateT Environment m a
+  StateT Environment m Command
 ifKeyWord WorkHandle {..} getDataVk obj = do
   env <- get
   let usrName = T.unpack $ username $ chat $ message obj
@@ -488,19 +487,19 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
         conf <- configurationH
         sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
-      pureOne
+      pure Help
     _ -> do
       _ <- lift $ sendRepeatsH obj env
-      pureTwo
+      pure $ Report "not a keyword"
 
 -- Changing the number of repetitions.
 wordIsRepeat ::
   Monad m =>
-  WorkHandle m a b ->
+  WorkHandle m a ->
   (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
-  StateT Environment m a
+  StateT Environment m Command
 wordIsRepeat WorkHandle {..} getDataVk obj [] = do
   -- getDataVk needed to get updates from VK.
   env <- get
@@ -555,13 +554,13 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                         (NumRepeats val)
                         (userData env)
                     )
-                pureOne
+                pure $ Repeat val
             )
           else
             ( do
                 _ <- lift $ sendRepeatsH newObj newEnv
                 put newEnv
-                pureTwo
+                pure $ Report "number out of range"
             )
       )
     else
