@@ -3,6 +3,13 @@
 
 module Vk where
 
+import Config
+  ( Configuration (apiVKVersion, groupIdVK),
+    Priority (DEBUG, ERROR),
+    configuration,
+    myHost,
+    myToken,
+  )
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
@@ -18,20 +25,15 @@ import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Lib
   ( Chat (..),
-    Configuration (apiVKVersion, groupIdVK),
     Environment (..),
     Media,
     Message (..),
     MessageDate (..),
-    Priority (DEBUG, ERROR),
     UpdateID (..),
     WholeObject (..),
-    configuration,
     connection,
     handler,
     ifKeyWord,
-    myHost,
-    myToken,
     writingLine,
   )
 import Network.HTTP.Simple

@@ -1,10 +1,12 @@
 module Main where
 
-import Control.Monad.State.Lazy (evalStateT, execStateT)
-import Lib
+import Config
   ( Priority (INFO),
     currentMessenger,
-    endlessCycle,
+  )
+import Control.Monad.State.Lazy (evalStateT, execStateT)
+import Lib
+  ( endlessCycle,
     environment,
     firstUpdateIDSession,
     writingLine,

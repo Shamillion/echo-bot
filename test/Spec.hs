@@ -1,3 +1,7 @@
+import Config
+  ( Configuration (..),
+    Priority (ERROR),
+  )
 import Control.Monad.Identity (Identity, runIdentity)
 import Control.Monad.State.Lazy (evalStateT, execStateT)
 import qualified Data.Map.Lazy as Map
@@ -5,12 +9,10 @@ import qualified Data.Text as T
 import Lib
   ( Chat (..),
     Command (..),
-    Configuration (..),
     Environment (..),
     Message (..),
     MessageDate (..),
     NumRepeats (..),
-    Priority (ERROR),
     UpdateID (..),
     Username (..),
     WholeObject (..),
