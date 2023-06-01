@@ -43,13 +43,13 @@ testConfig =
     }
 
 -- Handle for tests of echobot.
-handlerForTestIfKeyWord :: WorkHandle Identity String
+handlerForTestIfKeyWord :: WorkHandle Identity String String
 handlerForTestIfKeyWord =
   WorkHandle
-    { writingLineH = \_ _ -> pure Nullary,
+    { writingLineH = \_ _ -> pure "writingLine",
       sendKeyboardH = \_ _ -> pure "keyboard",
       sendCommentH = \_ _ -> pure "comment",
-      sendRepeatsH = \_ _ -> pure Nullary,
+      sendRepeatsH = \_ _ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
       currentMessengerH = pure "no matter",
       configurationH = pure testConfig,
@@ -57,7 +57,7 @@ handlerForTestIfKeyWord =
     }
 
 -- Handle for tests of echobot.
-handlerForTestWordIsRepeat :: WorkHandle Identity String
+handlerForTestWordIsRepeat :: WorkHandle Identity String String
 handlerForTestWordIsRepeat =
   handlerForTestIfKeyWord
     { wordIsRepeatH = \_ _ _ _ -> pure $ Report "empty array"

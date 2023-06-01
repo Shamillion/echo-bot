@@ -426,17 +426,17 @@ sendRepeats obj env = do
     messageId = show $ message_id $ message obj
     chatId = show $ chat_id $ chat $ message obj
 
-data Command = Repeat Int | Help | Report String | Nullary
+data Command = Repeat Int | Help | Report String
   deriving (Eq, Show)
 
 -- Handle Pattern
-data WorkHandle m a = WorkHandle
-  { writingLineH :: Priority -> String -> m Command,
-    sendKeyboardH :: MessageDate -> Environment -> m a,
-    sendCommentH :: MessageDate -> String -> m a,
-    sendRepeatsH :: MessageDate -> Environment -> m Command,
+data WorkHandle m a b = WorkHandle
+  { writingLineH :: Priority -> String -> m a,
+    sendKeyboardH :: MessageDate -> Environment -> m b,
+    sendCommentH :: MessageDate -> String -> m b,
+    sendRepeatsH :: MessageDate -> Environment -> m a,
     wordIsRepeatH ::
-      WorkHandle m a ->
+      WorkHandle m a b ->
       (UpdateID -> m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
@@ -447,13 +447,13 @@ data WorkHandle m a = WorkHandle
   }
 
 -- Handle for work of echobot.
-handler :: WorkHandle IO (Response LC.ByteString)
+handler :: WorkHandle IO () (Response LC.ByteString)
 handler =
   WorkHandle
-    { writingLineH = \prt str -> writingLine prt str >> pure Nullary,
+    { writingLineH = writingLine,
       sendKeyboardH = sendKeyboard,
       sendCommentH = sendComment,
-      sendRepeatsH = \md env -> sendRepeats md env >> pure Nullary,
+      sendRepeatsH = sendRepeats,
       wordIsRepeatH = wordIsRepeat,
       currentMessengerH = currentMessenger,
       configurationH = configuration,
@@ -463,7 +463,7 @@ handler =
 -- Keyword search and processing.
 ifKeyWord ::
   Monad m =>
-  WorkHandle m a ->
+  WorkHandle m a b ->
   (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m Command
@@ -495,7 +495,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
 -- Changing the number of repetitions.
 wordIsRepeat ::
   Monad m =>
-  WorkHandle m a ->
+  WorkHandle m a b ->
   (UpdateID -> m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
