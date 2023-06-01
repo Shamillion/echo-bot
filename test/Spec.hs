@@ -4,6 +4,7 @@ import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
 import Lib
   ( Chat (..),
+    Command (..),
     Configuration (..),
     Environment (..),
     Message (..),
@@ -45,25 +46,21 @@ testConfig =
 handlerForTestIfKeyWord :: WorkHandle Identity String String
 handlerForTestIfKeyWord =
   WorkHandle
-    { writingLineH = \_ _ -> pure "nothing",
+    { writingLineH = \_ _ -> pure "writingLine",
       sendKeyboardH = \_ _ -> pure "keyboard",
       sendCommentH = \_ _ -> pure "comment",
-      sendRepeatsH = \_ _ -> pure "nothing",
-      wordIsRepeatH = \_ _ _ _ -> pure "/repeat",
+      sendRepeatsH = \_ _ -> pure "sendRepeats",
+      wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
       currentMessengerH = pure "no matter",
       configurationH = pure testConfig,
-      getDataH = pure Nothing,
-      pureOne = pure "/help",
-      pureTwo = pure "anything"
+      getDataH = pure Nothing
     }
 
 -- Handle for tests of echobot.
 handlerForTestWordIsRepeat :: WorkHandle Identity String String
 handlerForTestWordIsRepeat =
   handlerForTestIfKeyWord
-    { wordIsRepeatH = \_ _ _ _ -> pure "Another user || empty array",
-      pureOne = pure "Number from 1 to 5",
-      pureTwo = pure "Not number from 1 to 5"
+    { wordIsRepeatH = \_ _ _ _ -> pure $ Report "empty array"
     }
 
 nothing :: UpdateID -> Identity (Maybe WholeObject)
@@ -86,12 +83,12 @@ messageDate usr txt =
           }
     }
 
-testingFunctionIfKeyWord :: T.Text -> String
+testingFunctionIfKeyWord :: T.Text -> Command
 testingFunctionIfKeyWord txt =
   runIdentity $
     evalStateT (ifKeyWord handlerForTestIfKeyWord nothing $ messageDate "testUsr" txt) environmentT
 
-testingFunctionWordIsRepeat :: T.Text -> T.Text -> T.Text -> String
+testingFunctionWordIsRepeat :: T.Text -> T.Text -> T.Text -> Command
 testingFunctionWordIsRepeat usr1 usr2 txt =
   runIdentity $
     evalStateT
@@ -117,7 +114,7 @@ testingFunctionWordIsRepeat' usr1 usr2 txt =
           )
           environmentT
 
-testingFunctionWordIsRepeatWithEmptyArr :: T.Text -> T.Text -> String
+testingFunctionWordIsRepeatWithEmptyArr :: T.Text -> T.Text -> Command
 testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
   runIdentity $
     evalStateT
@@ -132,27 +129,27 @@ testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
 testsFunctionIfKeyWord :: SpecWith ()
 testsFunctionIfKeyWord = do
   it "catch the /help" $
-    testingFunctionIfKeyWord "/help" `shouldBe` "/help"
+    testingFunctionIfKeyWord "/help" `shouldBe` Help
 
   it "catch the /repeat" $
-    testingFunctionIfKeyWord "/repeat" `shouldBe` "/repeat"
+    testingFunctionIfKeyWord "/repeat" `shouldBe` Report "/repeat"
 
   it "catch the others" $
-    verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x : xs)) == "anything"
+    verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x : xs)) == Report "not a keyword"
 
 testsFunctionWordIsRepeat :: SpecWith ()
 testsFunctionWordIsRepeat = do
   it "catch the number from 1 to 5" $ do
-    testingFunctionWordIsRepeat "Tony" "Tony" "1" `shouldBe` "Number from 1 to 5"
-    testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` "Number from 1 to 5"
-    testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` "Number from 1 to 5"
+    testingFunctionWordIsRepeat "Tony" "Tony" "1" `shouldBe` Repeat 1
+    testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` Repeat 3
+    testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` Repeat 5
 
     testingFunctionWordIsRepeat' "Tony" "Tony" "1" `shouldBe` Just (NumRepeats 1)
     testingFunctionWordIsRepeat' "Tony" "Tony" "3" `shouldBe` Just (NumRepeats 3)
     testingFunctionWordIsRepeat' "Tony" "Tony" "5" `shouldBe` Just (NumRepeats 5)
 
   it "the number is not from 1 to 5" $ do
-    testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` "Not number from 1 to 5"
+    testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` Report "number out of range"
     testingFunctionWordIsRepeat' "Tony" "Tony" "6" `shouldBe` Nothing
 
   it "another user" $ do
@@ -160,7 +157,7 @@ testsFunctionWordIsRepeat = do
     testingFunctionWordIsRepeat' "Tony" "Many" "6" `shouldBe` Nothing
 
   it "empty array" $
-    testingFunctionWordIsRepeatWithEmptyArr "Tony" "3" `shouldBe` "Another user || empty array"
+    testingFunctionWordIsRepeatWithEmptyArr "Tony" "3" `shouldBe` Report "empty array"
 
 main :: IO ()
 main = hspec $ do
