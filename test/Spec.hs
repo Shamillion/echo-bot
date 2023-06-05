@@ -2,26 +2,41 @@ import Config
   ( Configuration (..),
     Priority (ERROR),
   )
-import Control.Monad.Identity (Identity, runIdentity)
-import Control.Monad.State.Lazy (evalStateT, execStateT)
+import Control.Monad.Identity
+  ( Identity,
+    runIdentity,
+  )
+import Control.Monad.State.Lazy
+  ( evalStateT,
+    execStateT,
+  )
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
-import Lib
-  ( Chat (..),
-    Command (..),
-    Environment (..),
-    Message (..),
-    MessageDate (..),
+import Environment
+  ( Environment (..),
     NumRepeats (..),
     UpdateID (..),
-    Username (..),
-    WholeObject (..),
+    Username (Username),
+  )
+import Lib
+  ( Command (..),
     WorkHandle (..),
     ifKeyWord,
-    userData,
     wordIsRepeat,
   )
-import Test.Hspec (SpecWith, describe, hspec, it, shouldBe)
+import Telegram
+  ( Chat (..),
+    Message (..),
+    MessageDate (..),
+    WholeObject (..),
+  )
+import Test.Hspec
+  ( SpecWith,
+    describe,
+    hspec,
+    it,
+    shouldBe,
+  )
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment

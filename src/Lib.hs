@@ -1,262 +1,67 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingVia #-}
 
 module Lib where
 
 import Config
-    ( Configuration(logOutput, groupIdVK, apiVKVersion, helpMess,
-                    repeatMess, defaultRepeats),
-      Priority(..),
-      configuration,
-      currentMessenger,
-      myHost,
-      myToken,
-      messengerHost,
-      logLevel,
-      time,
-      logFile )
-import Control.Applicative (Alternative ((<|>)))
-import Control.Concurrent (threadDelay)
-import Control.Exception (try)
+  ( Configuration
+      ( apiVKVersion,
+        defaultRepeats,
+        groupIdVK,
+        helpMess,
+        repeatMess
+      ),
+    Priority (..),
+    configuration,
+    currentMessenger,
+    messengerHost,
+    myHost,
+    myToken,
+    writingLine,
+  )
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
     StateT (runStateT),
     evalStateT,
     replicateM_,
-    when,
   )
 import Data.Aeson
-  ( FromJSON (parseJSON),
-    KeyValue ((.=)),
-    ToJSON (toJSON),
-    Value (Object),
-    decode,
-    encode,
-    object,
-    withObject,
-    (.!=),
-    (.:),
-    (.:?),
+  ( encode,
   )
 import qualified Data.ByteString.Lazy.Char8 as LC
-import Data.Foldable (asum)
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Map.Lazy as Map
-import Data.String (IsString)
 import qualified Data.Text as T
 import Data.Time (getCurrentTime)
-import GHC.Generics (Generic)
+import Environment
+  ( Environment (..),
+    NumRepeats (..),
+    UpdateID (..),
+    Username (Username),
+  )
+import KeyboardData
+  ( createKeyboard,
+    keyboardVk,
+  )
 import Network.HTTP.Simple
-  ( HttpException,
-    Request,
+  ( Request,
     Response,
-    getResponseBody,
-    getResponseStatusCode,
     httpLBS,
     parseRequest_,
   )
-import System.Random (Random (randomRIO))
+import System.Random
+  ( Random (randomRIO),
+  )
+import Telegram
+  ( Chat (chat_id, username),
+    Media (AudioMessage, Others, Sticker, type_media),
+    Message (attachments, chat, message_id, textM),
+    MessageDate (..),
+    WholeObject (result),
+    errorMessage,
+    getData,
+  )
 import Text.Read (readMaybe)
-
-
-
--- Data types for the Telegram answer.
-data Chat = Chat
-  { chat_id :: Int,
-    username :: T.Text
-  }
-  deriving (Show)
-
-instance FromJSON Chat where
-  parseJSON (Object v) = do
-    chat_id <- v .: "id"
-    username <- v .: "username"
-    pure $ Chat chat_id username
-  parseJSON _ = mempty
-
-errorChat :: Chat
-errorChat = Chat 0 "error"
-
-data Message = Message
-  { message_id :: Int,
-    chat :: Chat,
-    textM :: Maybe T.Text,
-    attachments :: Maybe [Media]
-  }
-  deriving (Show)
-
-instance FromJSON Message where
-  parseJSON (Object v) = do
-    message_id <- v .: "message_id"
-    chat <- v .: "chat"
-    textM <- v .:? "text"
-    attachments <- v .:? "attachments"
-    pure $ Message message_id chat textM attachments
-  parseJSON _ = mempty
-
-errorMessage :: Message
-errorMessage =
-  Message
-    { message_id = 0,
-      chat = errorChat,
-      textM = Nothing,
-      attachments = Nothing
-    }
-
-data MessageDate = MessageDate
-  { update_id :: UpdateID,
-    message :: Message
-  }
-  deriving (Show)
-
-instance FromJSON MessageDate where
-  parseJSON (Object v) = do
-    num <- v .: "update_id"
-    message <- v .:? "message" .!= errorMessage
-    pure $ MessageDate (UpdateID num) message
-  parseJSON _ = mempty
-
-data WholeObject = WholeObject
-  { ok :: Bool,
-    result :: [MessageDate]
-  }
-  deriving (Show, Generic, FromJSON)
-
--- Data type for the Telegram keyboard.
-newtype KeyboardButton = KeyboardButton
-  {text :: T.Text}
-  deriving (Show, Generic, ToJSON)
-
-data ReplyKeyboardMarkup = ReplyKeyboardMarkup
-  { keyboard :: [[KeyboardButton]],
-    resize_keyboard :: Bool,
-    one_time_keyboard :: Bool
-  }
-  deriving (Show, Generic, ToJSON)
-
-data Media
-  = Sticker
-      { type_media :: T.Text,
-        sticker_id :: Int
-      }
-  | AudioMessage
-      { type_media :: T.Text,
-        link_mp3 :: T.Text
-      }
-  | Others
-      { type_media :: T.Text,
-        media_id :: Int,
-        owner_id :: Int,
-        url :: Maybe T.Text,
-        access_key :: Maybe T.Text
-      }
-  deriving (Show)
-
-instance FromJSON Media where
-  parseJSON = withObject "Media" $ \v ->
-    asum
-      [ do
-          type_media <- v .: "type"
-          obj <- v .: "sticker"
-          sticker_id <- obj .: "sticker_id"
-          pure $ Sticker type_media sticker_id,
-        do
-          type_media <- v .: "type"
-          obj <- v .: "audio_message"
-          link_mp3 <- obj .: "link_mp3"
-          pure $ AudioMessage type_media link_mp3,
-        do
-          type_media <- v .: "type"
-          obj <-
-            v .: "photo" <|> v .: "video" <|> v .: "audio" <|> v .: "doc"
-              <|> v .: "market"
-              <|> v .: "poll"
-              <|> v .: "wall"
-          media_id <- obj .: "id"
-          owner_id <- obj .: "owner_id"
-          url <- obj .:? "url"
-          access_key <- obj .:? "access_key"
-          pure $ Others type_media media_id owner_id url access_key
-      ]
-
--- Data types for the VK keyboard.
-data ActionVk = ActionVk
-  { typeActionVk :: T.Text,
-    label :: T.Text
-  }
-  deriving (Show)
-
-instance ToJSON ActionVk where
-  toJSON (ActionVk typeActionVk label) =
-    object
-      [ "type" .= typeActionVk,
-        "label" .= label
-      ]
-
-newtype ButtonVk = ButtonVk
-  {action :: ActionVk}
-  deriving (Show, Generic, ToJSON)
-
-data KeyboardVk = KeyboardVk
-  { one_time :: Bool,
-    buttonsVk :: [[ButtonVk]]
-  }
-  deriving (Show)
-
-instance ToJSON KeyboardVk where
-  toJSON (KeyboardVk one_time buttonsVk) =
-    object
-      [ "one_time" .= one_time,
-        "buttons" .= buttonsVk
-      ]
-
--- Functions types for the VK keyboard.
-buttonVk :: Int -> ButtonVk
-buttonVk num =
-  ButtonVk
-    { action = toAction num
-    }
-
-toAction :: Int -> ActionVk
-toAction num =
-  ActionVk
-    { typeActionVk = "text",
-      label = T.pack $ show num
-    }
-
-keyboardVk :: KeyboardVk
-keyboardVk =
-  KeyboardVk
-    { one_time = True,
-      buttonsVk = [map buttonVk [1 .. 5]]
-    }
-
--- Function writes information to log.
-writingLine :: Priority -> String -> IO ()
-writingLine lvl str = do
-  logLevel' <- logLevel
-  if lvl >= logLevel'
-    then do
-      t <- time
-      let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
-      out <- logOutput <$> configuration
-      case out of
-        "file" -> appendFile logFile $ string ++ "\n"
-        _ -> print string
-    else pure ()
-  where
-    showLevel val = case val of
-      DEBUG -> "DEBUG  "
-      INFO -> "INFO   "
-      WARNING -> "WARNING"
-      ERROR -> "ERROR  "
-
--- Update request string for Telegram.
-createStringGetUpdates :: UpdateID -> String
-createStringGetUpdates (UpdateID num) =
-  mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 -- Request generation.
 stringRequest :: String -> IO Request
@@ -341,7 +146,7 @@ attachment (x : xs) userId = case x of
               attachment xs userId
             ]
 
--- Sending repetitions of request for Telegram.
+-- Sending repetitions of request.
 sendRepeats :: MessageDate -> Environment -> IO ()
 sendRepeats obj env = do
   crntMsngr <- currentMessenger
@@ -510,18 +315,6 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
           wordIsRepeatH WorkHandle {..} getDataVk obj xs
       )
 
--- Creating keyboard for TG.
-toKeyboardButton :: Int -> KeyboardButton
-toKeyboardButton num = KeyboardButton {text = T.pack $ show num}
-
-createKeyboard :: ReplyKeyboardMarkup
-createKeyboard =
-  ReplyKeyboardMarkup
-    { keyboard = [map toKeyboardButton [1 .. 5]],
-      resize_keyboard = True,
-      one_time_keyboard = True
-    }
-
 question :: MessageDate -> Environment -> IO String
 question obj env = do
   conf <- configuration
@@ -604,25 +397,6 @@ sendComment obj str = do
   writingLine DEBUG $ show string
   httpLBS string
 
-newtype UpdateID = UpdateID Int
-  deriving (Eq)
-  deriving (Num) via Int
-
-instance Show UpdateID where
-  show (UpdateID a) = show a
-
-newtype Username = Username T.Text
-  deriving (Eq, Ord)
-  deriving (IsString) via T.Text
-
-newtype NumRepeats = NumRepeats Int
-  deriving (Eq, Show)
-
-data Environment = Environment
-  { lastUpdate :: UpdateID,
-    userData :: Map.Map Username NumRepeats
-  }
-
 getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
   conf <- configuration
@@ -631,55 +405,6 @@ getNumRepeats obj env = do
     Just n -> n
   where
     usrName = Username . username $ chat $ message obj
-
-environment :: IO Environment
-environment =
-  (Environment 0 . Map.singleton "" . NumRepeats)
-    . defaultRepeats
-    <$> configuration
-
--- Function for connecting to the server.
-connection :: Request -> Int -> IO (Response LC.ByteString)
-connection req num = do
-  x <- try $ httpLBS req
-  writingLine DEBUG $ show req
-  case x of
-    Left e -> do
-      writingLine ERROR $ show (e :: HttpException)
-      when (num == 0) $ do
-        getCurrentTime >>= print
-        putStrLn "Connection Failure"
-        putStrLn "Trying to set a connection... "
-      threadDelay 1000000
-      connection req (num + 1)
-    Right v -> do
-      writingLine DEBUG $ show v
-      when (num /= 0) $ do
-        getCurrentTime >>= print
-        putStrLn "Connection restored"
-      pure v
-
--- Function for getting data from Telegram's server.
-getData :: StateT Environment IO (Maybe WholeObject)
-getData = do
-  env <- get
-  req <- lift $ stringRequest . createStringGetUpdates . lastUpdate $ env
-  x <- lift $ connection req 0
-  let code = getResponseStatusCode x
-  if code == 200
-    then
-      ( do
-          let obj = decode $ getResponseBody x
-          case result <$> obj of
-            Just [] -> do
-              put $ Environment 1 (userData env)
-              getData
-            _ -> do
-              pure obj
-      )
-    else lift $ do
-      writingLine ERROR $ "statusCode " ++ show code
-      pure Nothing
 
 -- Function for getting update_id  for the first time.
 --  (Excludes processing of messages sent before the program is started).

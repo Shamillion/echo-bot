@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c4c80c57123b84f784a3b3302557092d7d661ee096c03209f1d07d09f0f47e41
+-- hash: ea2610e523b6ff1eb0dc9fac5e34b4d797aa547cf3e3eb065970870ffaa59f9c
 
 name:           echo-bot
 version:        0.1.0.0
@@ -28,6 +28,8 @@ source-repository head
 library
   exposed-modules:
       Config
+      Environment
+      KeyboardData
       Lib
       Telegram
       Vk

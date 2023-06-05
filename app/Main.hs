@@ -3,13 +3,16 @@ module Main where
 import Config
   ( Priority (INFO),
     currentMessenger,
+    writingLine,
   )
-import Control.Monad.State.Lazy (evalStateT, execStateT)
+import Control.Monad.State.Lazy
+  ( evalStateT,
+    execStateT,
+  )
+import Environment (environment)
 import Lib
   ( endlessCycle,
-    environment,
     firstUpdateIDSession,
-    writingLine,
   )
 import Vk (botsLongPollAPI)
 

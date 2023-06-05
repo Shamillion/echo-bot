@@ -3,11 +3,24 @@
 
 module Config where
 
-import Data.Aeson (FromJSON, eitherDecode)
+import Control.Concurrent (threadDelay)
+import Control.Exception (try)
+import Control.Monad.State.Lazy (when)
+import Data.Aeson
+  ( FromJSON,
+    eitherDecode,
+  )
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import GHC.Generics (Generic)
+import Network.HTTP.Simple
+  ( HttpException,
+    Request,
+    Response,
+    httpLBS,
+  )
 import System.Exit (die)
 
 -- Data type for the logger.
@@ -80,3 +93,44 @@ messengerHost = (++ "/bot") <$> myHost
 -- Logging level.
 logLevel :: IO Priority
 logLevel = priorityLevel <$> configuration
+
+-- Function writes information to log.
+writingLine :: Priority -> String -> IO ()
+writingLine lvl str = do
+  logLevel' <- logLevel
+  if lvl >= logLevel'
+    then do
+      t <- time
+      let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
+      out <- logOutput <$> configuration
+      case out of
+        "file" -> appendFile logFile $ string ++ "\n"
+        _ -> print string
+    else pure ()
+  where
+    showLevel val = case val of
+      DEBUG -> "DEBUG  "
+      INFO -> "INFO   "
+      WARNING -> "WARNING"
+      ERROR -> "ERROR  "
+
+-- Function for connecting to the server.
+connection :: Request -> Int -> IO (Response LC.ByteString)
+connection req num = do
+  x <- try $ httpLBS req
+  writingLine DEBUG $ show req
+  case x of
+    Left e -> do
+      writingLine ERROR $ show (e :: HttpException)
+      when (num == 0) $ do
+        getCurrentTime >>= print
+        putStrLn "Connection Failure"
+        putStrLn "Trying to set a connection... "
+      threadDelay 1000000
+      connection req (num + 1)
+    Right v -> do
+      writingLine DEBUG $ show v
+      when (num /= 0) $ do
+        getCurrentTime >>= print
+        putStrLn "Connection restored"
+      pure v
