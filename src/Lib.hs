@@ -11,7 +11,7 @@ import Config
         repeatMess
       ),
     Priority (..),
-    configuration,
+    getConfiguration,
     currentMessenger,
     messengerHost,
     myHost,
@@ -64,9 +64,9 @@ import Telegram
 import Text.Read (readMaybe)
 
 -- Request generation.
-stringRequest :: String -> IO Request
-stringRequest str = do
-  conf <- configuration
+createStringRequest :: String -> IO Request
+createStringRequest str = do
+  conf <- getConfiguration
   crntMsngr <- currentMessenger
   myHost' <- myHost
   messengerHost' <- messengerHost
@@ -109,7 +109,7 @@ repeatMessageVk obj = do
           "sticker" -> ""
           _ -> "&attachment="
   string <-
-    stringRequest $
+    createStringRequest $
       mconcat
         [ userId,
           "&random_id=",
@@ -151,7 +151,7 @@ sendRepeats :: MessageDate -> Environment -> IO ()
 sendRepeats obj env = do
   crntMsngr <- currentMessenger
   string <-
-    stringRequest $
+    createStringRequest $
       mconcat
         [ "/copyMessage?chat_id=",
           chatId,
@@ -187,7 +187,7 @@ data WorkHandle m a b = WorkHandle
       [MessageDate] ->
       StateT Environment m Command,
     currentMessengerH :: m T.Text,
-    configurationH :: m Configuration,
+    getConfigurationH :: m Configuration,
     getDataH :: StateT Environment m (Maybe WholeObject)
   }
 
@@ -201,7 +201,7 @@ handler =
       sendRepeatsH = sendRepeats,
       wordIsRepeatH = wordIsRepeat,
       currentMessengerH = currentMessenger,
-      configurationH = configuration,
+      getConfigurationH = getConfiguration,
       getDataH = getData
     }
 
@@ -230,7 +230,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
     Just "/help" -> do
       _ <- lift $ do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
-        conf <- configurationH
+        conf <- getConfigurationH
         sendCommentH obj $ T.unpack $ mconcat $ helpMess conf
       pure Help
     _ -> do
@@ -315,9 +315,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
           wordIsRepeatH WorkHandle {..} getDataVk obj xs
       )
 
-question :: MessageDate -> Environment -> IO String
-question obj env = do
-  conf <- configuration
+createQuestion :: MessageDate -> Environment -> IO String
+createQuestion obj env = do
+  conf <- getConfiguration
   num <- getNumRepeats obj env
   pure $
     mconcat
@@ -349,8 +349,8 @@ sendKeyboard obj env = do
   let userId = T.unpack $ username $ chat $ message obj
   randomId' <- randomId
   crntMsngr <- currentMessenger
-  question' <- question obj env
-  string <- stringRequest $
+  question' <- createQuestion obj env
+  string <- createStringRequest $
     mconcat $
       case crntMsngr of
         "TG" ->
@@ -378,7 +378,7 @@ sendComment obj str = do
   let userId = T.unpack $ username $ chat $ message obj
   randomId' <- randomId
   crntMsngr <- currentMessenger
-  string <- stringRequest $
+  string <- createStringRequest $
     mconcat $
       case crntMsngr of
         "TG" ->
@@ -399,7 +399,7 @@ sendComment obj str = do
 
 getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
-  conf <- configuration
+  conf <- getConfiguration
   pure $ case Map.lookup usrName $ userData env of
     Nothing -> NumRepeats $ defaultRepeats conf
     Just n -> n

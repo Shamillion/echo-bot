@@ -69,7 +69,7 @@ handlerForTestIfKeyWord =
       sendRepeatsH = \_ _ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
       currentMessengerH = pure "no matter",
-      configurationH = pure testConfig,
+      getConfigurationH = pure testConfig,
       getDataH = pure Nothing
     }
 

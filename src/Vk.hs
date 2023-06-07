@@ -6,8 +6,8 @@ module Vk where
 import Config
   ( Configuration (apiVKVersion, groupIdVK),
     Priority (DEBUG, ERROR),
-    configuration,
-    connection,
+    getConfiguration,
+    connectToServer,
     myHost,
     myToken,
     writingLine,
@@ -114,42 +114,42 @@ instance FromJSON MessageVK where
   parseJSON _ = mempty
 
 -- Functions for converting VK's data to Telegrams's data.
-wholeObjectVk :: VkData -> IO WholeObject
-wholeObjectVk obj = do
+getWholeObjectFromVk :: VkData -> IO WholeObject
+getWholeObjectFromVk obj = do
   num <-
     UpdateID <$> case readEither . T.unpack . offset $ obj of
       Right n -> pure n
       Left e -> writingLine ERROR e >> pure 0
-  ls <- mapM (messageDateVk num) $ updates obj
+  ls <- mapM (getMessageDateFromVk num) $ updates obj
   pure $
     WholeObject
       { ok = True,
         result = ls
       }
 
-messageDateVk :: UpdateID -> Updates -> IO MessageDate
-messageDateVk num obj = do
-  messageFromVk' <- messageFromVk obj
+getMessageDateFromVk :: UpdateID -> Updates -> IO MessageDate
+getMessageDateFromVk num obj = do
+  getMessageFromVk' <- getMessageFromVk obj
   pure $
     MessageDate
       { update_id = num,
-        TG.message = messageFromVk'
+        TG.message = getMessageFromVk'
       }
 
-messageFromVk :: Updates -> IO Message
-messageFromVk obj = do
-  chatVk' <- chatVk obj
+getMessageFromVk :: Updates -> IO Message
+getMessageFromVk obj = do
+  getChatFromVk' <- getChatFromVk obj
   pure $
     Message
       { message_id = messageVK_id $ messageVK $ updates_object obj,
-        chat = chatVk',
+        chat = getChatFromVk',
         textM = Just $ messageVK_text $ messageVK $ updates_object obj,
         TG.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
       }
 
-chatVk :: Updates -> IO Chat
-chatVk obj = do
-  conf <- configuration
+getChatFromVk :: Updates -> IO Chat
+getChatFromVk obj = do
+  conf <- getConfiguration
   pure $
     Chat
       { chat_id = groupIdVK conf,
@@ -159,7 +159,7 @@ chatVk obj = do
 -- Function for receiving data from the VK server.
 getVkData :: T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
 getVkData s k t = do
-  x <- connection req 0
+  x <- connectToServer req 0
   writingLine DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
   --  print $ getResponseBody x            -- Delete
@@ -172,7 +172,7 @@ getVkData s k t = do
       writingLine DEBUG $ show v
       case updates v of
         [] -> getVkData s k $ offset v
-        _ -> pure <$> wholeObjectVk v
+        _ -> pure <$> getWholeObjectFromVk v
   where
     req =
       parseRequest_ $
@@ -181,7 +181,7 @@ getVkData s k t = do
 
 getLongPollServerRequest :: IO Request
 getLongPollServerRequest = do
-  conf <- configuration
+  conf <- getConfiguration
   myHost' <- myHost
   myToken' <- myToken
   pure . parseRequest_ $
@@ -201,7 +201,7 @@ botsLongPollAPI :: StateT Environment IO ()
 botsLongPollAPI = do
   x <- lift $ do
     getLongPollServerRequest' <- getLongPollServerRequest
-    connection getLongPollServerRequest' 0
+    connectToServer getLongPollServerRequest' 0
   let code = getResponseStatusCode x
   if code == 200
     then

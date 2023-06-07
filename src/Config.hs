@@ -53,8 +53,8 @@ logFile :: String
 logFile = "log.log"
 
 -- Getting information from configuration file.
-configuration :: IO Configuration
-configuration = do
+getConfiguration :: IO Configuration
+getConfiguration = do
   t <- time
   content <- L.readFile "config.json"
   case eitherDecode content of
@@ -67,12 +67,12 @@ configuration = do
 
 -- Selected messenger.
 currentMessenger :: IO T.Text
-currentMessenger = messenger <$> configuration
+currentMessenger = messenger <$> getConfiguration
 
 -- The host of selected messenger.
 myHost :: IO String
 myHost = do
-  conf <- configuration
+  conf <- getConfiguration
   crntMsngr <- currentMessenger
   pure $ case crntMsngr of
     "TG" -> T.unpack $ hostTG conf
@@ -81,7 +81,7 @@ myHost = do
 -- The token of selected messenger.
 myToken :: IO String
 myToken = do
-  conf <- configuration
+  conf <- getConfiguration
   crntMsngr <- currentMessenger
   pure $ case crntMsngr of
     "TG" -> T.unpack $ tokenTG conf
@@ -92,7 +92,7 @@ messengerHost = (++ "/bot") <$> myHost
 
 -- Logging level.
 logLevel :: IO Priority
-logLevel = priorityLevel <$> configuration
+logLevel = priorityLevel <$> getConfiguration
 
 -- Function writes information to log.
 writingLine :: Priority -> String -> IO ()
@@ -102,7 +102,7 @@ writingLine lvl str = do
     then do
       t <- time
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
-      out <- logOutput <$> configuration
+      out <- logOutput <$> getConfiguration
       case out of
         "file" -> appendFile logFile $ string ++ "\n"
         _ -> print string
@@ -115,8 +115,8 @@ writingLine lvl str = do
       ERROR -> "ERROR  "
 
 -- Function for connecting to the server.
-connection :: Request -> Int -> IO (Response LC.ByteString)
-connection req num = do
+connectToServer :: Request -> Int -> IO (Response LC.ByteString)
+connectToServer req num = do
   x <- try $ httpLBS req
   writingLine DEBUG $ show req
   case x of
@@ -127,7 +127,7 @@ connection req num = do
         putStrLn "Connection Failure"
         putStrLn "Trying to set a connection... "
       threadDelay 1000000
-      connection req (num + 1)
+      connectToServer req (num + 1)
     Right v -> do
       writingLine DEBUG $ show v
       when (num /= 0) $ do

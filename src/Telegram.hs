@@ -5,7 +5,7 @@ module Telegram where
 
 import Config
   ( Priority (ERROR),
-    connection,
+    connectToServer,
     messengerHost,
     myToken,
     writingLine,
@@ -159,7 +159,7 @@ getData = do
     lift $
       parseRequest_
         <$> mconcat [pure "https://", messengerHost, myToken, str]
-  x <- lift $ connection req 0
+  x <- lift $ connectToServer req 0
   let code = getResponseStatusCode x
   if code == 200
     then
