@@ -3,6 +3,15 @@
 
 module Vk where
 
+import Config
+  ( Configuration (apiVKVersion, groupIdVK),
+    Priority (DEBUG, ERROR),
+    configuration,
+    connection,
+    myHost,
+    myToken,
+    writingLine,
+  )
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
@@ -15,30 +24,27 @@ import Data.Aeson
     (.:),
   )
 import qualified Data.Text as T
+import Environment
+  ( Environment (..),
+    UpdateID (..),
+  )
 import GHC.Generics (Generic)
 import Lib
-  ( Chat (..),
-    Configuration (apiVKVersion, groupIdVK),
-    Environment (..),
-    Media,
-    Message (..),
-    MessageDate (..),
-    Priority (DEBUG, ERROR),
-    UpdateID (..),
-    WholeObject (..),
-    configuration,
-    connection,
-    handler,
+  ( handler,
     ifKeyWord,
-    myHost,
-    myToken,
-    writingLine,
   )
 import Network.HTTP.Simple
   ( Request,
     getResponseBody,
     getResponseStatusCode,
     parseRequest_,
+  )
+import Telegram as TG
+  ( Chat (..),
+    Media,
+    Message (..),
+    MessageDate (..),
+    WholeObject (..),
   )
 import Text.Read (readEither)
 
@@ -127,7 +133,7 @@ messageDateVk num obj = do
   pure $
     MessageDate
       { update_id = num,
-        Lib.message = messageFromVk'
+        TG.message = messageFromVk'
       }
 
 messageFromVk :: Updates -> IO Message
@@ -138,7 +144,7 @@ messageFromVk obj = do
       { message_id = messageVK_id $ messageVK $ updates_object obj,
         chat = chatVk',
         textM = Just $ messageVK_text $ messageVK $ updates_object obj,
-        Lib.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
+        TG.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
       }
 
 chatVk :: Updates -> IO Chat
