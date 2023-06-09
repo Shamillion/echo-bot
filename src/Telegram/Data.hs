@@ -1,25 +1,12 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Telegram where
+module Telegram.Data where
 
-import Config
-  ( Priority (ERROR),
-    connectToServer,
-    messengerHost,
-    myToken,
-    writingLine,
-  )
 import Control.Applicative (Alternative ((<|>)))
-import Control.Monad.State.Lazy
-  ( MonadState (get, put),
-    MonadTrans (lift),
-    StateT,
-  )
 import Data.Aeson
   ( FromJSON (parseJSON),
     Value (Object),
-    decode,
     withObject,
     (.!=),
     (.:),
@@ -28,15 +15,9 @@ import Data.Aeson
 import Data.Foldable (asum)
 import qualified Data.Text as T
 import Environment
-  ( Environment (Environment, lastUpdate, userData),
-    UpdateID (UpdateID),
+  ( UpdateID (UpdateID),
   )
 import GHC.Generics (Generic)
-import Network.HTTP.Simple
-  ( getResponseBody,
-    getResponseStatusCode,
-    parseRequest_,
-  )
 
 -- Data types for the Telegram answer.
 data Chat = Chat
@@ -144,34 +125,3 @@ instance FromJSON Media where
           access_key <- obj .:? "access_key"
           pure $ Others type_media media_id owner_id url access_key
       ]
-
--- Update request string for Telegram.
-createStringGetUpdates :: UpdateID -> String
-createStringGetUpdates (UpdateID num) =
-  mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
-
--- Function for getting data from Telegram's server.
-getData :: StateT Environment IO (Maybe WholeObject)
-getData = do
-  env <- get
-  let str = pure . createStringGetUpdates . lastUpdate $ env
-  req <-
-    lift $
-      parseRequest_
-        <$> mconcat [pure "https://", messengerHost, myToken, str]
-  x <- lift $ connectToServer req 0
-  let code = getResponseStatusCode x
-  if code == 200
-    then
-      ( do
-          let obj = decode $ getResponseBody x
-          case result <$> obj of
-            Just [] -> do
-              put $ Environment 1 (userData env)
-              getData
-            _ -> do
-              pure obj
-      )
-    else lift $ do
-      writingLine ERROR $ "statusCode " ++ show code
-      pure Nothing

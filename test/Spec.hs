@@ -1,7 +1,4 @@
-import Config
-  ( Configuration (..),
-    Priority (ERROR),
-  )
+import Config (Configuration (..))
 import Control.Monad.Identity
   ( Identity,
     runIdentity,
@@ -24,7 +21,8 @@ import Lib
     ifKeyWord,
     wordIsRepeat,
   )
-import Telegram
+import Logger.Data (Priority (ERROR))
+import Telegram.Data
   ( Chat (..),
     Message (..),
     MessageDate (..),
