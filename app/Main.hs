@@ -1,20 +1,16 @@
 module Main where
 
-import Config
-  ( Priority (INFO),
-    currentMessenger,
-    writingLine,
-  )
+import Config (currentMessenger)
 import Control.Monad.State.Lazy
   ( evalStateT,
     execStateT,
   )
 import Environment (environment)
-import Lib
-  ( endlessCycle,
-    firstUpdateIDSession,
-  )
-import Vk (botsLongPollAPI)
+import Logger.Data (Priority (INFO))
+import Logger.Functions (writingLine)
+import Telegram.Engine (endlessCycle)
+import Telegram.Functions (firstUpdateIDSession)
+import Vk.Engine (botsLongPollAPI)
 
 main :: IO ()
 main = do

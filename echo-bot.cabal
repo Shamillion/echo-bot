@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ea2610e523b6ff1eb0dc9fac5e34b4d797aa547cf3e3eb065970870ffaa59f9c
+-- hash: 8cba6e05e40ef07cfb4dd71992bec4b82da57ae41cd8a19307e8280d6ae966d8
 
 name:           echo-bot
 version:        0.1.0.0
@@ -28,11 +28,20 @@ source-repository head
 library
   exposed-modules:
       Config
+      Connect
       Environment
-      KeyboardData
       Lib
-      Telegram
-      Vk
+      Logger.Data
+      Logger.Functions
+      RequestBuilding      
+      Telegram.Data
+      Telegram.Engine
+      Telegram.Functions
+      Telegram.KeyboardData
+      Vk.Data
+      Vk.Engine
+      Vk.Functions
+      Vk.KeyboardData
   other-modules:
       Paths_echo_bot
   hs-source-dirs:

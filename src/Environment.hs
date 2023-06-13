@@ -4,7 +4,7 @@ module Environment where
 
 import Config
   ( Configuration (defaultRepeats),
-    configuration,
+    getConfiguration,
   )
 import qualified Data.Map.Lazy as Map
 import Data.String (IsString)
@@ -33,4 +33,4 @@ environment :: IO Environment
 environment =
   (Environment 0 . Map.singleton "" . NumRepeats)
     . defaultRepeats
-    <$> configuration
+    <$> getConfiguration
