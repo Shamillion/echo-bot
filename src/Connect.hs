@@ -8,7 +8,7 @@ import Data.Time (getCurrentTime)
 import Logger.Data (Priority (DEBUG, ERROR))
 import Logger.Functions (writingLine)
 import Network.HTTP.Conduit
-  ( HttpExceptionContent (ConnectionFailure),
+  ( HttpExceptionContent (ConnectionFailure, ResponseTimeout),
   )
 import Network.HTTP.Simple
   ( HttpException (HttpExceptionRequest),
@@ -24,14 +24,10 @@ connectToServer req num = do
   x <- try $ httpLBS req
   writingLine DEBUG $ show req
   case x of
-    Left cf@(HttpExceptionRequest _ (ConnectionFailure _)) -> do
-      writingLine ERROR $ show (cf :: HttpException)
-      when (num == 0) $ do
-        getCurrentTime >>= print
-        putStrLn "Connection Failure"
-      putStrLn "Trying to set a connection... "
-      threadDelay 1000000
-      connectToServer req (num + 1)
+    Left cf@(HttpExceptionRequest _ (ConnectionFailure _)) ->
+      errorProcessing cf num
+    Left rt@(HttpExceptionRequest _ ResponseTimeout) ->
+      errorProcessing rt num
     Left e -> do
       let err = show (e :: HttpException)
       writingLine ERROR err
@@ -42,3 +38,12 @@ connectToServer req num = do
         getCurrentTime >>= print
         putStrLn "Connection restored"
       pure v
+  where
+    errorProcessing err n = do
+      writingLine ERROR $ show (err :: HttpException)
+      when (n == 0) $ do
+        getCurrentTime >>= print
+        putStrLn "Connection Failure"
+      putStrLn "Trying to set a connection... "
+      threadDelay 1000000
+      connectToServer req (n + 1)
