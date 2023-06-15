@@ -11,7 +11,6 @@ import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
     StateT,
-    evalStateT,
     replicateM_,
   )
 import Data.Aeson
@@ -126,9 +125,9 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       _ <- lift $ writingLineH INFO $ "Received /repeat from " ++ usrName
       _ <- lift $ sendKeyboardH obj env
       crntMsngr <- lift currentMessengerH
-      fromServer <- lift $ case crntMsngr of
-        "TG" -> evalStateT getDataH env
-        _ -> getDataVk . lastUpdate $ env
+      fromServer <- case crntMsngr of
+        "TG" -> getDataH 
+        _ -> lift . getDataVk . lastUpdate $ env 
       let arr = case result <$> fromServer of
             Just ls -> ls
             _ -> []
@@ -155,9 +154,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do
   -- getDataVk needed to get updates from VK.
   env <- get
   crntMsngr <- lift currentMessengerH
-  fromServer <- lift $ case crntMsngr of
-    "TG" -> evalStateT getDataH env
-    _ -> getDataVk . lastUpdate $ env
+  fromServer <- case crntMsngr of
+    "TG" -> getDataH 
+    _ -> lift . getDataVk . lastUpdate $ env
   newArr <- lift $
     case result <$> fromServer of
       Just n -> pure n
