@@ -24,6 +24,24 @@ newtype VkResponse = VkResponse
   {response :: VkKeyServerTs}
   deriving (Show, Generic, FromJSON)
 
+data VkError = VkError
+  { error_code :: Int,
+    error_msg :: T.Text
+  }
+  deriving (Show)
+
+instance FromJSON VkError where
+  parseJSON (Object v) = do
+    obj <- v .: "error"
+    error_code <- obj .: "error_code"
+    error_msg <- obj .: "error_msg"
+    pure $ VkError error_code error_msg
+  parseJSON _ = mempty
+
+-- newtype VkError = VkError
+--   {errorData :: VkErrorData}
+--   deriving (Show, Generic, FromJSON)
+
 -- Data types for VK answer on
 --   BotsLongPollAPI request.
 data VkData = VkData

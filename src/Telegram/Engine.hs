@@ -23,9 +23,7 @@ endlessCycle = do
   obj <- lift $ evalStateT getData env
   let nothing _ = pure Nothing
   case obj of
-    Nothing -> do
-      lift $ writingLine ERROR "Broken request!"
-      endlessCycle
+    Nothing -> lift $ writingLine ERROR "Broken request!"
     _ -> do
       let arr = case result <$> obj of
             Just [x] -> [x]

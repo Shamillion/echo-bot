@@ -32,8 +32,9 @@ import Telegram.Data as TG
     WholeObject (..),
   )
 import Vk.Data
-  ( VkData (offset, updates),
-    VkKeyServerTs (key, server, ts),
+  ( VkData (..),
+    VkError (..),
+    VkKeyServerTs (..),
     VkResponse (response),
   )
 import Vk.Functions (getWholeObjectFromVk)
@@ -90,7 +91,7 @@ botsLongPollAPI = do
       ( do
           let obj = eitherDecode $ getResponseBody x
           case obj of
-            Left e -> lift $ writingLine ERROR $ show e
+            Left _ -> errorProcessing x
             Right v -> do
               let server' = server $ response v
                   key' = key $ response v
@@ -112,3 +113,16 @@ botsLongPollAPI = do
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
           getAnswer s k $ T.pack $ show $ lastUpdate newEnv
+    errorProcessing bs = do
+      let errObj = eitherDecode $ getResponseBody bs
+      case errObj of
+        Left err -> lift $ writingLine ERROR $ show err
+        Right dta ->
+          lift $
+            writingLine ERROR $
+              mconcat
+                [ "Error code ",
+                  show $ error_code dta,
+                  ". ",
+                  T.unpack $ error_msg dta
+                ]
