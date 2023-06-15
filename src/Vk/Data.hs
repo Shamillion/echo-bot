@@ -38,10 +38,6 @@ instance FromJSON VkError where
     pure $ VkError error_code error_msg
   parseJSON _ = mempty
 
--- newtype VkError = VkError
---   {errorData :: VkErrorData}
---   deriving (Show, Generic, FromJSON)
-
 -- Data types for VK answer on
 --   BotsLongPollAPI request.
 data VkData = VkData
