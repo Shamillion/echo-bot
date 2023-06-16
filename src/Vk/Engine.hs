@@ -45,7 +45,6 @@ getVkData s k t = do
   x <- connectToServer req 0
   writingLine DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
-  --  print $ getResponseBody x            -- Delete
   case obj of
     Left e -> do
       print $ getResponseBody x

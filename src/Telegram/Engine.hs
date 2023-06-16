@@ -4,7 +4,6 @@ import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
     StateT,
-    evalStateT,
   )
 import Environment (Environment (Environment, userData))
 import Lib (handler, ifKeyWord)
@@ -20,7 +19,7 @@ import Telegram.Functions (getData)
 endlessCycle :: StateT Environment IO ()
 endlessCycle = do
   env <- get
-  obj <- lift $ evalStateT getData env
+  obj <- getData
   let nothing _ = pure Nothing
   case obj of
     Nothing -> lift $ writingLine ERROR "Broken request!"

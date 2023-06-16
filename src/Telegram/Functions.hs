@@ -8,7 +8,7 @@ import Connect (connectToServer)
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
     MonadTrans (lift),
-    StateT (runStateT),
+    StateT,
   )
 import Data.Aeson (decode)
 import Data.Time (getCurrentTime)
@@ -63,8 +63,8 @@ getData = do
 --  (Excludes processing of messages sent before the program is started).
 firstUpdateIDSession :: StateT Environment IO ()
 firstUpdateIDSession = do
+  obj <- getData
   env <- get
-  (obj, newEnv) <- lift $ runStateT getData env
   case obj of
     Nothing -> pure ()
     _ -> do
@@ -74,6 +74,6 @@ firstUpdateIDSession = do
             Just [] -> 0
             Just md -> (\(x : _) -> update_id x) (reverse md)
             _ -> 0
-      if lastUpdate newEnv == 1
-        then put $ Environment update_id' (userData newEnv)
-        else put $ Environment (1 + update_id') (userData newEnv)
+      if lastUpdate env == 1
+        then put $ Environment update_id' (userData env)
+        else put $ Environment (1 + update_id') (userData env)
