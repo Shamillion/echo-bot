@@ -1,11 +1,13 @@
 module Main where
 
-import Config (currentMessenger)
 import Control.Monad.State.Lazy
   ( evalStateT,
     execStateT,
   )
-import Environment (environment)
+import Environment
+  ( currentMessenger,
+    environment,
+  )
 import Logger.Data (Priority (INFO))
 import Logger.Functions (writingLine)
 import Telegram.Engine (endlessCycle)

@@ -1,10 +1,10 @@
 module Vk.Engine where
 
 import Config
-  ( Configuration (apiVKVersion, groupIdVK),
-    getConfiguration,
-    myHost,
-    myToken,
+  ( Configuration
+      ( apiVKVersion,
+        groupIdVK
+      ),
   )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
@@ -14,7 +14,12 @@ import Control.Monad.State.Lazy
   )
 import Data.Aeson (eitherDecode)
 import qualified Data.Text as T
-import Environment (Environment (..))
+import Environment
+  ( Environment (..),
+    getConfiguration,
+    myHost,
+    myToken,
+  )
 import Lib
   ( handler,
     ifKeyWord,
@@ -64,12 +69,12 @@ getVkData s k t = do
 getLongPollServerRequest :: IO Request
 getLongPollServerRequest = do
   conf <- getConfiguration
-  myHost' <- myHost
+--  myHost' <- myHost
   myToken' <- myToken
   pure . parseRequest_ $
     mconcat
       [ "https://",
-        myHost',
+        myHost conf,
         "/method/groups.getLongPollServer?group_id=",
         show $ groupIdVK conf,
         "&access_token=",
@@ -108,7 +113,7 @@ botsLongPollAPI = do
           let arr = result w
               getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-          put $ Environment update_id' (userData env)
+          put $ Environment update_id' (userData env) (configuration env)
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
           getAnswer s k $ T.pack $ show $ lastUpdate newEnv

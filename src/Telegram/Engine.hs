@@ -5,7 +5,7 @@ import Control.Monad.State.Lazy
     MonadTrans (lift),
     StateT,
   )
-import Environment (Environment (Environment, userData))
+import Environment (Environment (Environment, configuration, userData))
 import Lib (handler, ifKeyWord)
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
@@ -28,7 +28,7 @@ endlessCycle = do
             Just [x] -> [x]
             _ -> []
           update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-      put $ Environment (1 + update_id') (userData env)
+      put $ Environment (1 + update_id') (userData env) (configuration env)
       _ <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle

@@ -1,9 +1,5 @@
 module Telegram.Functions where
 
-import Config
-  ( messengerHost,
-    myToken,
-  )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
@@ -13,8 +9,15 @@ import Control.Monad.State.Lazy
 import Data.Aeson (decode)
 import Data.Time (getCurrentTime)
 import Environment
-  ( Environment (Environment, lastUpdate, userData),
+  ( Environment
+      ( Environment,
+        configuration,
+        lastUpdate,
+        userData
+      ),
     UpdateID (UpdateID),
+    messengerHost,
+    myToken,
   )
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
@@ -38,10 +41,11 @@ getData :: StateT Environment IO (Maybe WholeObject)
 getData = do
   env <- get
   let str = pure . createStringGetUpdates . lastUpdate $ env
+      conf = configuration env 
   req <-
     lift $
       parseRequest_
-        <$> mconcat [pure "https://", messengerHost, myToken, str]
+        <$> mconcat [pure "https://", pure $ messengerHost conf, myToken, str]
   x <- lift $ connectToServer req 0
   let code = getResponseStatusCode x
   if code == 200
@@ -50,7 +54,7 @@ getData = do
           let obj = decode $ getResponseBody x
           case result <$> obj of
             Just [] -> do
-              put $ Environment 1 (userData env)
+              put $ Environment 1 (userData env) (configuration env)
               getData
             _ -> do
               pure obj
@@ -75,5 +79,5 @@ firstUpdateIDSession = do
             Just md -> (\(x : _) -> update_id x) (reverse md)
             _ -> 0
       if lastUpdate env == 1
-        then put $ Environment update_id' (userData env)
-        else put $ Environment (1 + update_id') (userData env)
+        then put $ Environment update_id' (userData env) (configuration env)
+        else put $ Environment (1 + update_id') (userData env) (configuration env)

@@ -1,12 +1,12 @@
 module RequestBuilding where
 
 import Config
-  ( Configuration (apiVKVersion, defaultRepeats, groupIdVK, repeatMess),
-    currentMessenger,
-    getConfiguration,
-    messengerHost,
-    myHost,
-    myToken,
+  ( Configuration
+      ( apiVKVersion,
+        defaultRepeats,
+        groupIdVK,
+        repeatMess, messenger
+      ),
   )
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
@@ -14,6 +14,10 @@ import Environment
   ( Environment (userData),
     NumRepeats (NumRepeats),
     Username (Username),
+    getConfiguration,
+    messengerHost,
+    myHost,
+    myToken,
   )
 import Network.HTTP.Simple
   ( Request,
@@ -29,17 +33,17 @@ import Telegram.Data
 createStringRequest :: String -> IO Request
 createStringRequest str = do
   conf <- getConfiguration
-  crntMsngr <- currentMessenger
-  myHost' <- myHost
-  messengerHost' <- messengerHost
+--  let crntMsngr = messenger conf
+--  myHost' <- myHost
+--  messengerHost' <- messengerHost
   myToken' <- myToken
   pure . parseRequest_ $
-    case crntMsngr of
-      "TG" -> mconcat ["https://", messengerHost', myToken', str]
+    case messenger conf of
+      "TG" -> mconcat ["https://", messengerHost conf, myToken', str]
       _ ->
         mconcat
           [ "https://",
-            myHost',
+            myHost conf,
             "/method/messages.send?user_id=",
             str,
             "&peer_id=-",

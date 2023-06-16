@@ -2,12 +2,14 @@ module Vk.Functions where
 
 import Config
   ( Configuration (groupIdVK),
-    getConfiguration,
   )
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Functor.Identity (runIdentity)
 import qualified Data.Text as T
-import Environment (UpdateID (..))
+import Environment
+  ( UpdateID (..),
+    getConfiguration,
+  )
 import Logger.Data
   ( Priority (DEBUG, ERROR),
   )

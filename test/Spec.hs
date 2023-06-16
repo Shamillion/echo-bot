@@ -38,7 +38,7 @@ import Test.Hspec
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment
-environmentT = Environment 0 $ Map.singleton "" (NumRepeats 3)
+environmentT = Environment 0  (Map.singleton "" (NumRepeats 3)) testConfig
 
 testConfig :: Configuration
 testConfig =

@@ -2,22 +2,18 @@ module Logger.Functions where
 
 import Config
   ( Configuration (logOutput, priorityLevel),
-    getConfiguration,
   )
+import Environment (getConfiguration)
 import Logger.Data
   ( Priority (..),
     logFile,
     time,
   )
 
--- Logging level.
-logLevel :: IO Priority
-logLevel = priorityLevel <$> getConfiguration
-
 -- Function writes information to log.
 writingLine :: Priority -> String -> IO ()
 writingLine lvl str = do
-  logLevel' <- logLevel
+  logLevel' <- priorityLevel <$> getConfiguration
   if lvl >= logLevel'
     then do
       t <- time

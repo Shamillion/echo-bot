@@ -3,9 +3,7 @@
 module Lib where
 
 import Config
-  ( Configuration (helpMess),
-    currentMessenger,
-    getConfiguration,
+  ( Configuration (helpMess, messenger),
   )
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
@@ -24,6 +22,8 @@ import Environment
     NumRepeats (..),
     UpdateID (..),
     Username (Username),
+    currentMessenger,
+    getConfiguration,
   )
 import Logger.Data (Priority (..))
 import Logger.Functions (writingLine)
@@ -54,7 +54,7 @@ import Vk.KeyboardData (keyboardVk)
 -- Sending repetitions of request.
 sendRepeats :: MessageDate -> Environment -> IO ()
 sendRepeats obj env = do
-  crntMsngr <- currentMessenger
+  let crntMsngr = messenger . configuration $ env
   string <-
     createStringRequest $
       mconcat
@@ -126,8 +126,8 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       _ <- lift $ sendKeyboardH obj env
       crntMsngr <- lift currentMessengerH
       fromServer <- case crntMsngr of
-        "TG" -> getDataH 
-        _ -> lift . getDataVk . lastUpdate $ env 
+        "TG" -> getDataH
+        _ -> lift . getDataVk . lastUpdate $ env
       let arr = case result <$> fromServer of
             Just ls -> ls
             _ -> []
@@ -155,7 +155,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do
   env <- get
   crntMsngr <- lift currentMessengerH
   fromServer <- case crntMsngr of
-    "TG" -> getDataH 
+    "TG" -> getDataH
     _ -> lift . getDataVk . lastUpdate $ env
   newArr <- lift $
     case result <$> fromServer of
@@ -168,7 +168,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
   crntMsngr <- lift currentMessengerH
   let newObj = x
-      newEnv = Environment (num + update_id newObj) (userData env)
+      newEnv = Environment (num + update_id newObj) (userData env) (configuration env)
       usrNameText = username . chat . message $ obj
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
@@ -204,6 +204,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                         (NumRepeats val)
                         (userData env)
                     )
+                    (configuration env)
                 pure $ Repeat val
             )
           else
@@ -227,8 +228,8 @@ randomId = randomRIO (1, 1000000)
 sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
   let userId = T.unpack $ username $ chat $ message obj
+      crntMsngr = messenger . configuration $ env 
   randomId' <- randomId
-  crntMsngr <- currentMessenger
   question' <- createQuestion obj env
   string <- createStringRequest $
     mconcat $
