@@ -38,7 +38,7 @@ data Configuration = Configuration
 readConfigFile :: IO Configuration
 readConfigFile = do
   t <- time
-  content <- L.readFile "1config.json"
+  content <- L.readFile "config.json"
   case eitherDecode content of
     Right conf -> pure conf
     Left err -> do
@@ -46,3 +46,20 @@ readConfigFile = do
       print str
       appendFile logFile $ str ++ "\n"
       die "Error reading the configuration file! Check out config.json!"
+
+-- The host of selected messenger.
+myHost :: Configuration -> String
+myHost conf = do
+  case messenger conf of
+    "TG" -> T.unpack $ hostTG conf
+    _ -> T.unpack $ hostVK conf
+
+-- The token of selected messenger.
+myToken :: Configuration -> String
+myToken conf = do
+  case messenger conf of
+    "TG" -> T.unpack $ tokenTG conf
+    _ -> T.unpack $ tokenVK conf
+
+messengerHost :: Configuration -> String
+messengerHost = (++ "/bot") . myHost

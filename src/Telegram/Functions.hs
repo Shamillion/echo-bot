@@ -1,5 +1,9 @@
 module Telegram.Functions where
 
+import Config
+  ( messengerHost,
+    myToken,
+  )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
   ( MonadState (get, put),
@@ -16,8 +20,6 @@ import Environment
         userData
       ),
     UpdateID (UpdateID),
-    messengerHost,
-    myToken,
   )
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
@@ -40,13 +42,12 @@ createStringGetUpdates (UpdateID num) =
 getData :: StateT Environment IO (Maybe WholeObject)
 getData = do
   env <- get
-  let str = pure . createStringGetUpdates . lastUpdate $ env
-      conf = configuration env 
-  req <-
-    lift $
-      parseRequest_
-        <$> mconcat [pure "https://", pure $ messengerHost conf, myToken, str]
-  x <- lift $ connectToServer req 0
+  let str = createStringGetUpdates . lastUpdate $ env
+      conf = configuration env
+      req =
+        parseRequest_ $
+          mconcat ["https://", messengerHost conf, myToken conf, str]
+  x <- lift $ connectToServer conf req 0
   let code = getResponseStatusCode x
   if code == 200
     then
@@ -60,7 +61,7 @@ getData = do
               pure obj
       )
     else lift $ do
-      writingLine ERROR $ "statusCode " ++ show code
+      _ <- writingLine conf ERROR $ "statusCode " ++ show code
       pure Nothing
 
 -- Function for getting update_id  for the first time.

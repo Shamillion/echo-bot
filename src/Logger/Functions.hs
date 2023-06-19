@@ -1,9 +1,11 @@
 module Logger.Functions where
 
 import Config
-  ( Configuration (logOutput, priorityLevel),
+  ( Configuration
+      ( logOutput,
+        priorityLevel
+      ),
   )
-import Environment (getConfiguration)
 import Logger.Data
   ( Priority (..),
     logFile,
@@ -11,14 +13,14 @@ import Logger.Data
   )
 
 -- Function writes information to log.
-writingLine :: Priority -> String -> IO ()
-writingLine lvl str = do
-  logLevel' <- priorityLevel <$> getConfiguration
-  if lvl >= logLevel'
+writingLine :: Configuration -> Priority -> String -> IO ()
+writingLine conf lvl str = do
+  let logLevel = priorityLevel conf
+  if lvl >= logLevel
     then do
       t <- time
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
-      out <- logOutput <$> getConfiguration
+          out = logOutput conf
       case out of
         "file" -> appendFile logFile $ string ++ "\n"
         _ -> print string

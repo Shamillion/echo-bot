@@ -8,7 +8,6 @@ import Data.Functor.Identity (runIdentity)
 import qualified Data.Text as T
 import Environment
   ( UpdateID (..),
-    getConfiguration,
   )
 import Logger.Data
   ( Priority (DEBUG, ERROR),
@@ -44,51 +43,45 @@ import Vk.Data
   )
 
 -- Functions for converting VK's data to Telegrams's data.
-getWholeObjectFromVk :: VkData -> IO WholeObject
-getWholeObjectFromVk obj = do
+getWholeObjectFromVk :: Configuration -> VkData -> IO WholeObject
+getWholeObjectFromVk conf obj = do
   num <-
     UpdateID <$> case readEither . T.unpack . offset $ obj of
       Right n -> pure n
-      Left e -> writingLine ERROR e >> pure 0
-  ls <- mapM (getMessageDateFromVk num) $ updates obj
+      Left e -> writingLine conf ERROR e >> pure 0
+  let ls = map (getMessageDateFromVk conf num) $ updates obj
   pure $
     WholeObject
       { ok = True,
         result = ls
       }
 
-getMessageDateFromVk :: UpdateID -> Updates -> IO MessageDate
-getMessageDateFromVk num obj = do
-  getMessageFromVk' <- getMessageFromVk obj
-  pure $
-    MessageDate
-      { update_id = num,
-        TG.message = getMessageFromVk'
-      }
+getMessageDateFromVk :: Configuration -> UpdateID -> Updates -> MessageDate
+getMessageDateFromVk conf num obj =
+  MessageDate
+    { update_id = num,
+      TG.message = getMessageFromVk conf obj
+    }
 
-getMessageFromVk :: Updates -> IO Message
-getMessageFromVk obj = do
-  getChatFromVk' <- getChatFromVk obj
-  pure $
-    Message
-      { message_id = messageVK_id $ messageVK $ updates_object obj,
-        chat = getChatFromVk',
-        textM = Just $ messageVK_text $ messageVK $ updates_object obj,
-        TG.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
-      }
+getMessageFromVk :: Configuration -> Updates -> Message
+getMessageFromVk conf obj =
+  Message
+    { message_id = messageVK_id $ messageVK $ updates_object obj,
+      chat = getChatFromVk conf obj,
+      textM = Just $ messageVK_text $ messageVK $ updates_object obj,
+      TG.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
+    }
 
-getChatFromVk :: Updates -> IO Chat
-getChatFromVk obj = do
-  conf <- getConfiguration
-  pure $
-    Chat
-      { chat_id = groupIdVK conf,
-        username = T.pack $ show $ from_id $ messageVK $ updates_object obj
-      }
+getChatFromVk :: Configuration -> Updates -> Chat
+getChatFromVk conf obj =
+  Chat
+    { chat_id = groupIdVK conf,
+      username = T.pack $ show $ from_id $ messageVK $ updates_object obj
+    }
 
 -- Sending a request to VK to return a message.
-repeatMessageVk :: MessageDate -> IO (Response LC.ByteString)
-repeatMessageVk obj = do
+repeatMessageVk :: Configuration -> MessageDate -> IO (Response LC.ByteString)
+repeatMessageVk conf obj = do
   r <- randomRIO (1, 1000000) :: IO Int
   let userId = T.unpack $ username $ chat $ message obj
       str = case textM $ message obj of
@@ -102,16 +95,16 @@ repeatMessageVk obj = do
         _ -> case type_media $ (\(x : _) -> x) arr of
           "sticker" -> ""
           _ -> "&attachment="
-  string <-
-    createStringRequest $
-      mconcat
-        [ userId,
-          "&random_id=",
-          show r,
-          "&message=",
-          stringToUrl $ T.unpack str ++ add ++ attachment arr userId
-        ]
-  writingLine DEBUG $ show string
+      string =
+        createStringRequest conf $
+          mconcat
+            [ userId,
+              "&random_id=",
+              show r,
+              "&message=",
+              stringToUrl $ T.unpack str ++ add ++ attachment arr userId
+            ]
+  _ <- writingLine conf DEBUG $ show string
   httpLBS string
 
 -- Processing of attachments for VK.

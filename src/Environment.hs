@@ -3,7 +3,7 @@
 module Environment where
 
 import Config
-  ( Configuration (defaultRepeats, hostTG, hostVK, messenger, tokenTG, tokenVK),
+  ( Configuration(..),
     readConfigFile,
   )
 import qualified Data.Map.Lazy as Map
@@ -30,12 +30,6 @@ data Environment = Environment
     configuration :: Configuration
   }
 
--- environment :: IO Environment
--- environment =
---   (Environment 0 . Map.singleton "" . NumRepeats)
---     . defaultRepeats
---     <$> getConfiguration
-
 environment :: IO Environment
 environment = do
   conf <- readConfigFile
@@ -46,29 +40,3 @@ environment = do
         configuration = conf
       }
 
-getConfiguration :: IO Configuration
-getConfiguration = configuration <$> environment
-
--- Selected messenger.
-currentMessenger :: IO T.Text
-currentMessenger = messenger <$> getConfiguration
-
--- The host of selected messenger.
-myHost :: Configuration -> String
-myHost conf = do
-  let crntMsngr = messenger conf
-  case crntMsngr of
-    "TG" -> T.unpack $ hostTG conf
-    _ -> T.unpack $ hostVK conf
-
--- The token of selected messenger.
-myToken :: IO String
-myToken = do
-  conf <- getConfiguration
-  crntMsngr <- currentMessenger
-  pure $ case crntMsngr of
-    "TG" -> T.unpack $ tokenTG conf
-    _ -> T.unpack $ tokenVK conf
-
-messengerHost :: Configuration -> String
-messengerHost = (++ "/bot") . myHost
