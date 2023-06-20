@@ -15,8 +15,7 @@ import Logger.Data
 -- Function writes information to log.
 writingLine :: Configuration -> Priority -> String -> IO ()
 writingLine conf lvl str = do
-  let logLevel = priorityLevel conf
-  if lvl >= logLevel
+  if lvl >= priorityLevel conf
     then do
       t <- time
       let string = t ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
