@@ -35,8 +35,8 @@ data Configuration = Configuration
   deriving (Show, Generic, FromJSON)
 
 -- Getting information from configuration file.
-getConfiguration :: IO Configuration
-getConfiguration = do
+readConfigFile :: IO Configuration
+readConfigFile = do
   t <- time
   content <- L.readFile "config.json"
   case eitherDecode content of
@@ -47,27 +47,19 @@ getConfiguration = do
       appendFile logFile $ str ++ "\n"
       die "Error reading the configuration file! Check out config.json!"
 
--- Selected messenger.
-currentMessenger :: IO T.Text
-currentMessenger = messenger <$> getConfiguration
-
 -- The host of selected messenger.
-myHost :: IO String
-myHost = do
-  conf <- getConfiguration
-  crntMsngr <- currentMessenger
-  pure $ case crntMsngr of
+myHost :: Configuration -> String
+myHost conf = do
+  case messenger conf of
     "TG" -> T.unpack $ hostTG conf
     _ -> T.unpack $ hostVK conf
 
 -- The token of selected messenger.
-myToken :: IO String
-myToken = do
-  conf <- getConfiguration
-  crntMsngr <- currentMessenger
-  pure $ case crntMsngr of
+myToken :: Configuration -> String
+myToken conf = do
+  case messenger conf of
     "TG" -> T.unpack $ tokenTG conf
     _ -> T.unpack $ tokenVK conf
 
-messengerHost :: IO String
-messengerHost = (++ "/bot") <$> myHost
+messengerHost :: Configuration -> String
+messengerHost = (++ "/bot") . myHost

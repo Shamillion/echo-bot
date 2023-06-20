@@ -1,5 +1,6 @@
 module Connect where
 
+import Config (Configuration)
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
 import Control.Monad.State.Lazy (when)
@@ -19,10 +20,10 @@ import Network.HTTP.Simple
 import System.Exit (die)
 
 -- Function for connecting to the server.
-connectToServer :: Request -> Int -> IO (Response LC.ByteString)
-connectToServer req num = do
+connectToServer :: Configuration -> Request -> Int -> IO (Response LC.ByteString)
+connectToServer conf req num = do
   x <- try $ httpLBS req
-  writingLine DEBUG $ show req
+  writingLine conf DEBUG $ show req
   case x of
     Left cf@(HttpExceptionRequest _ (ConnectionFailure _)) ->
       errorProcessing cf num
@@ -30,20 +31,20 @@ connectToServer req num = do
       errorProcessing rt num
     Left e -> do
       let err = show (e :: HttpException)
-      writingLine ERROR err
+      writingLine conf ERROR err
       die err
     Right v -> do
-      writingLine DEBUG $ show v
+      writingLine conf DEBUG $ show v
       when (num /= 0) $ do
         getCurrentTime >>= print
         putStrLn "Connection restored"
       pure v
   where
     errorProcessing err n = do
-      writingLine ERROR $ show (err :: HttpException)
+      writingLine conf ERROR $ show (err :: HttpException)
       when (n == 0) $ do
         getCurrentTime >>= print
         putStrLn "Connection Failure"
       putStrLn "Trying to set a connection... "
       threadDelay 1000000
-      connectToServer req (n + 1)
+      connectToServer conf req (n + 1)

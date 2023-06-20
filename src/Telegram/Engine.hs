@@ -5,8 +5,17 @@ import Control.Monad.State.Lazy
     MonadTrans (lift),
     StateT,
   )
-import Environment (Environment (Environment, userData))
-import Lib (handler, ifKeyWord)
+import Environment
+  ( Environment
+      ( Environment,
+        configuration,
+        userData
+      ),
+  )
+import Lib
+  ( handler,
+    ifKeyWord,
+  )
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
 import Telegram.Data
@@ -20,15 +29,16 @@ endlessCycle :: StateT Environment IO ()
 endlessCycle = do
   env <- get
   obj <- getData
-  let nothing _ = pure Nothing
+  let conf = configuration env
+      nothing _ = pure Nothing
   case obj of
-    Nothing -> lift $ writingLine ERROR "Broken request!"
+    Nothing -> lift $ writingLine conf ERROR "Broken request!"
     _ -> do
       let arr = case result <$> obj of
             Just [x] -> [x]
             _ -> []
           update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-      put $ Environment (1 + update_id') (userData env)
+      put $ Environment (1 + update_id') (userData env) conf
       _ <- get
       mapM_ (ifKeyWord handler nothing) arr
       endlessCycle

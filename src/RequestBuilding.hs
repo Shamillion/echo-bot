@@ -1,9 +1,13 @@
 module RequestBuilding where
 
 import Config
-  ( Configuration (apiVKVersion, defaultRepeats, groupIdVK, repeatMess),
-    currentMessenger,
-    getConfiguration,
+  ( Configuration
+      ( apiVKVersion,
+        defaultRepeats,
+        groupIdVK,
+        messenger,
+        repeatMess
+      ),
     messengerHost,
     myHost,
     myToken,
@@ -11,7 +15,7 @@ import Config
 import qualified Data.Map.Lazy as Map
 import qualified Data.Text as T
 import Environment
-  ( Environment (userData),
+  ( Environment (configuration, userData),
     NumRepeats (NumRepeats),
     Username (Username),
   )
@@ -26,49 +30,41 @@ import Telegram.Data
   )
 
 -- Request generation.
-createStringRequest :: String -> IO Request
-createStringRequest str = do
-  conf <- getConfiguration
-  crntMsngr <- currentMessenger
-  myHost' <- myHost
-  messengerHost' <- messengerHost
-  myToken' <- myToken
-  pure . parseRequest_ $
-    case crntMsngr of
-      "TG" -> mconcat ["https://", messengerHost', myToken', str]
-      _ ->
-        mconcat
-          [ "https://",
-            myHost',
-            "/method/messages.send?user_id=",
-            str,
-            "&peer_id=-",
-            show $ groupIdVK conf,
-            "&access_token=",
-            myToken',
-            "&v=",
-            T.unpack $ apiVKVersion conf
-          ]
+createStringRequest :: Configuration -> String -> Request
+createStringRequest conf str = parseRequest_ $
+  case messenger conf of
+    "TG" -> mconcat ["https://", messengerHost conf, myToken conf, str]
+    _ ->
+      mconcat
+        [ "https://",
+          myHost conf,
+          "/method/messages.send?user_id=",
+          str,
+          "&peer_id=-",
+          show $ groupIdVK conf,
+          "&access_token=",
+          myToken conf,
+          "&v=",
+          T.unpack $ apiVKVersion conf
+        ]
 
 getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
-  conf <- getConfiguration
   pure $ case Map.lookup usrName $ userData env of
-    Nothing -> NumRepeats $ defaultRepeats conf
+    Nothing -> NumRepeats . defaultRepeats . configuration $ env
     Just n -> n
   where
     usrName = Username . username $ chat $ message obj
 
 createQuestion :: MessageDate -> Environment -> IO String
 createQuestion obj env = do
-  conf <- getConfiguration
   num <- getNumRepeats obj env
   pure $
     mconcat
       [ "Currently set to ",
         show num,
         " repetitions.\n",
-        T.unpack $ repeatMess conf
+        T.unpack . repeatMess . configuration $ env
       ]
 
 stringToUrl :: String -> String

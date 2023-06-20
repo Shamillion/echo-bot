@@ -3,8 +3,8 @@
 module Environment where
 
 import Config
-  ( Configuration (defaultRepeats),
-    getConfiguration,
+  ( Configuration(..),
+    readConfigFile,
   )
 import qualified Data.Map.Lazy as Map
 import Data.String (IsString)
@@ -26,11 +26,17 @@ newtype NumRepeats = NumRepeats Int
 
 data Environment = Environment
   { lastUpdate :: UpdateID,
-    userData :: Map.Map Username NumRepeats
+    userData :: Map.Map Username NumRepeats,
+    configuration :: Configuration
   }
 
 environment :: IO Environment
-environment =
-  (Environment 0 . Map.singleton "" . NumRepeats)
-    . defaultRepeats
-    <$> getConfiguration
+environment = do
+  conf <- readConfigFile
+  pure $
+    Environment
+      { lastUpdate = 0,
+        userData = Map.singleton "" . NumRepeats . defaultRepeats $ conf,
+        configuration = conf
+      }
+

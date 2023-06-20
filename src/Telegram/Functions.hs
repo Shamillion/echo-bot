@@ -13,7 +13,12 @@ import Control.Monad.State.Lazy
 import Data.Aeson (decode)
 import Data.Time (getCurrentTime)
 import Environment
-  ( Environment (Environment, lastUpdate, userData),
+  ( Environment
+      ( Environment,
+        configuration,
+        lastUpdate,
+        userData
+      ),
     UpdateID (UpdateID),
   )
 import Logger.Data (Priority (ERROR))
@@ -37,12 +42,12 @@ createStringGetUpdates (UpdateID num) =
 getData :: StateT Environment IO (Maybe WholeObject)
 getData = do
   env <- get
-  let str = pure . createStringGetUpdates . lastUpdate $ env
-  req <-
-    lift $
-      parseRequest_
-        <$> mconcat [pure "https://", messengerHost, myToken, str]
-  x <- lift $ connectToServer req 0
+  let str = createStringGetUpdates . lastUpdate $ env
+      conf = configuration env
+      req =
+        parseRequest_ $
+          mconcat ["https://", messengerHost conf, myToken conf, str]
+  x <- lift $ connectToServer conf req 0
   let code = getResponseStatusCode x
   if code == 200
     then
@@ -50,13 +55,13 @@ getData = do
           let obj = decode $ getResponseBody x
           case result <$> obj of
             Just [] -> do
-              put $ Environment 1 (userData env)
+              put $ Environment 1 (userData env) (configuration env)
               getData
             _ -> do
               pure obj
       )
     else lift $ do
-      writingLine ERROR $ "statusCode " ++ show code
+      _ <- writingLine conf ERROR $ "statusCode " ++ show code
       pure Nothing
 
 -- Function for getting update_id  for the first time.
@@ -75,5 +80,5 @@ firstUpdateIDSession = do
             Just md -> (\(x : _) -> update_id x) (reverse md)
             _ -> 0
       if lastUpdate env == 1
-        then put $ Environment update_id' (userData env)
-        else put $ Environment (1 + update_id') (userData env)
+        then put $ Environment update_id' (userData env) (configuration env)
+        else put $ Environment (1 + update_id') (userData env) (configuration env)

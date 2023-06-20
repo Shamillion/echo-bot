@@ -1,8 +1,10 @@
 module Vk.Engine where
 
 import Config
-  ( Configuration (apiVKVersion, groupIdVK),
-    getConfiguration,
+  ( Configuration
+      ( apiVKVersion,
+        groupIdVK
+      ),
     myHost,
     myToken,
   )
@@ -14,7 +16,9 @@ import Control.Monad.State.Lazy
   )
 import Data.Aeson (eitherDecode)
 import qualified Data.Text as T
-import Environment (Environment (..))
+import Environment
+  ( Environment (..),
+  )
 import Lib
   ( handler,
     ifKeyWord,
@@ -40,40 +44,37 @@ import Vk.Data
 import Vk.Functions (getWholeObjectFromVk)
 
 -- Function for receiving data from the VK server.
-getVkData :: T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
-getVkData s k t = do
-  x <- connectToServer req 0
-  writingLine DEBUG $ show req
+getVkData :: Configuration -> T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
+getVkData conf s k t = do
+  x <- connectToServer conf req 0
+  writingLine conf DEBUG $ show req
   let obj = eitherDecode $ getResponseBody x
   case obj of
     Left e -> do
       print $ getResponseBody x
-      writingLine ERROR e
+      writingLine conf ERROR e
       pure Nothing
     Right v -> do
-      writingLine DEBUG $ show v
+      writingLine conf DEBUG $ show v
       case updates v of
-        [] -> getVkData s k $ offset v
-        _ -> pure <$> getWholeObjectFromVk v
+        [] -> getVkData conf s k $ offset v
+        _ -> pure <$> getWholeObjectFromVk conf v
   where
     req =
       parseRequest_ $
         T.unpack $
           mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
 
-getLongPollServerRequest :: IO Request
-getLongPollServerRequest = do
-  conf <- getConfiguration
-  myHost' <- myHost
-  myToken' <- myToken
-  pure . parseRequest_ $
+getLongPollServerRequest :: Configuration -> Request
+getLongPollServerRequest conf =
+  parseRequest_ $
     mconcat
       [ "https://",
-        myHost',
+        myHost conf,
         "/method/groups.getLongPollServer?group_id=",
         show $ groupIdVK conf,
         "&access_token=",
-        myToken',
+        myToken conf,
         "&v=",
         T.unpack $ apiVKVersion conf
       ]
@@ -81,44 +82,44 @@ getLongPollServerRequest = do
 -- Main program cycle for VK.
 botsLongPollAPI :: StateT Environment IO ()
 botsLongPollAPI = do
-  x <- lift $ do
-    getLongPollServerRequest' <- getLongPollServerRequest
-    connectToServer getLongPollServerRequest' 0
+  conf <- configuration <$> get
+  x <- lift $ connectToServer conf (getLongPollServerRequest conf) 0
   let code = getResponseStatusCode x
   if code == 200
     then
       ( do
           let obj = eitherDecode $ getResponseBody x
           case obj of
-            Left _ -> errorProcessing x
+            Left _ -> errorProcessing conf x
             Right v -> do
               let server' = server $ response v
                   key' = key $ response v
                   ts' = ts $ response v
               getAnswer server' key' ts'
       )
-    else lift $ writingLine ERROR $ "statusCode " ++ show code
+    else lift $ writingLine conf ERROR $ "statusCode " ++ show code
   where
     getAnswer s k t = do
       env <- get
-      getVkDt <- lift $ getVkData s k t
+      let cnf = configuration env
+      getVkDt <- lift $ getVkData cnf s k t
       case getVkDt of
         Nothing -> botsLongPollAPI
         Just w -> do
           let arr = result w
-              getVkData' lastUpdId = getVkData s k $ T.pack $ show lastUpdId
+              getVkData' lastUpdId = getVkData cnf s k $ T.pack $ show lastUpdId
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
-          put $ Environment update_id' (userData env)
+          put $ Environment update_id' (userData env) (configuration env)
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
           getAnswer s k $ T.pack $ show $ lastUpdate newEnv
-    errorProcessing bs = do
+    errorProcessing cnf bs = do
       let errObj = eitherDecode $ getResponseBody bs
       case errObj of
-        Left err -> lift $ writingLine ERROR $ show err
+        Left err -> lift $ writingLine cnf ERROR $ show err
         Right dta ->
           lift $
-            writingLine ERROR $
+            writingLine cnf ERROR $
               mconcat
                 [ "Error code ",
                   show $ error_code dta,

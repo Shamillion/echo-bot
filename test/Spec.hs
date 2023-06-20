@@ -38,7 +38,7 @@ import Test.Hspec
 import Test.QuickCheck (verbose)
 
 environmentT :: Environment
-environmentT = Environment 0 $ Map.singleton "" (NumRepeats 3)
+environmentT = Environment 0 (Map.singleton "" (NumRepeats 3)) testConfig
 
 testConfig :: Configuration
 testConfig =
@@ -66,8 +66,6 @@ handlerForTestIfKeyWord =
       sendCommentH = \_ _ -> pure "comment",
       sendRepeatsH = \_ _ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
-      currentMessengerH = pure "no matter",
-      getConfigurationH = pure testConfig,
       getDataH = pure Nothing
     }
 
