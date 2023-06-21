@@ -6,8 +6,9 @@ import Config
   ( Configuration (helpMess, messenger),
   )
 import Control.Monad.State.Lazy
-  ( MonadState (get, put),
-    MonadTrans (lift),
+  ( get,
+    put,
+    lift,
     StateT,
     replicateM_,
   )
@@ -49,10 +50,10 @@ import Vk.Functions (repeatMessageVk)
 import Vk.KeyboardData (keyboardVk)
 
 -- Sending repetitions of request.
-sendRepeats :: MessageDate -> Environment -> IO ()
-sendRepeats obj env = do
+sendRepeats :: MessageDate -> StateT Environment IO ()
+sendRepeats obj = do
+  env <- get
   let conf = configuration env
-      crntMsngr = messenger conf
       string =
         createStringRequest conf $
           mconcat
@@ -63,13 +64,13 @@ sendRepeats obj env = do
               "&message_id=",
               messageId
             ]
-  NumRepeats num <- getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
+  NumRepeats num <- lift $ getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
   replicateM_ num $ -- Repeat the action num times.
-    case crntMsngr of
+    case messenger conf of
       "TG" -> do
-        writingLine conf DEBUG $ show string
+        writingLine DEBUG $ show string
         httpLBS string
-      _ -> repeatMessageVk conf obj
+      _ -> repeatMessageVk obj
   where
     messageId = show $ message_id $ message obj
     chatId = show $ chat_id $ chat $ message obj
@@ -79,13 +80,13 @@ data Command = Repeat Int | Help | Report String
 
 -- Handle Pattern
 data WorkHandle m a b = WorkHandle
-  { writingLineH :: Configuration -> Priority -> String -> m a,
-    sendKeyboardH :: MessageDate -> Environment -> m b,
-    sendCommentH :: Configuration -> MessageDate -> String -> m b,
-    sendRepeatsH :: MessageDate -> Environment -> m a,
+  { writingLineH :: Priority -> String -> StateT Environment m a,
+    sendKeyboardH :: MessageDate -> StateT Environment m b,
+    sendCommentH :: MessageDate -> String -> StateT Environment m b,
+    sendRepeatsH :: MessageDate -> StateT Environment m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
-      (UpdateID -> m (Maybe WholeObject)) ->
+      (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m Command,
@@ -108,7 +109,7 @@ handler =
 ifKeyWord ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> m (Maybe WholeObject)) ->
+  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m Command
 ifKeyWord WorkHandle {..} getDataVk obj = do
@@ -117,29 +118,29 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       conf = configuration env
   case textM $ message obj of
     Just "/repeat" -> do
-      _ <- lift $ writingLineH conf INFO $ "Received /repeat from " ++ usrName
-      _ <- lift $ sendKeyboardH obj env
+      _ <- writingLineH INFO $ "Received /repeat from " ++ usrName
+      _ <- sendKeyboardH obj
       fromServer <- case messenger conf of
         "TG" -> getDataH
-        _ -> lift . getDataVk . lastUpdate $ env
+        _ ->getDataVk . lastUpdate $ env
       let arr = case result <$> fromServer of
             Just ls -> ls
             _ -> []
       wordIsRepeatH WorkHandle {..} getDataVk obj arr
     Just "/help" -> do
-      _ <- lift $ do
-        _ <- writingLineH conf INFO $ "Received /help from " ++ usrName
-        sendCommentH conf obj $ mconcat $ helpMess conf
+      _ <- do
+        _ <- writingLineH INFO $ "Received /help from " ++ usrName
+        sendCommentH obj $ mconcat $ helpMess conf
       pure Help
     _ -> do
-      _ <- lift $ sendRepeatsH obj env
+      _ <- sendRepeatsH obj
       pure $ Report "not a keyword"
 
 -- Changing the number of repetitions.
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> m (Maybe WholeObject)) ->
+  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
@@ -149,13 +150,12 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do
   let conf = configuration env
   fromServer <- case messenger conf of
     "TG" -> getDataH
-    _ -> lift . getDataVk . lastUpdate $ env
-  newArr <- lift $
-    case result <$> fromServer of
-      Just n -> pure n
-      Nothing ->
-        writingLineH conf ERROR "The array of messages is missing"
-          >> pure [MessageDate 0 errorMessage]
+    _ -> getDataVk $ lastUpdate env
+  newArr <- case result <$> fromServer of
+    Just n -> pure n
+    Nothing ->
+      writingLineH ERROR "The array of messages is missing"
+        >> pure [MessageDate 0 errorMessage]
   wordIsRepeatH WorkHandle {..} getDataVk obj newArr
 wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
   env <- get
@@ -166,10 +166,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if messenger conf == "TG" then 1 else 0
-  val <- lift $
-    case textM (message newObj) >>= readMaybe of
-      Just n -> pure n
-      Nothing -> writingLineH conf ERROR "No parse NumRepeats from message" >> pure 0
+  val <- case textM (message newObj) >>= readMaybe of
+    Just n -> pure n
+    Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
@@ -177,18 +176,16 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
           then
             ( do
                 _ <-
-                  lift $
-                    sendCommentH conf obj $
-                      "Done! Set up "
-                        ++ show val
-                        ++ " repeat(s)."
+                  sendCommentH obj $
+                    "Done! Set up "
+                      ++ show val
+                      ++ " repeat(s)."
                 _ <-
-                  lift $
-                    writingLineH conf INFO $
-                      "Set up "
-                        ++ show val
-                        ++ " repeat(s) to "
-                        ++ usrNameText
+                  writingLineH INFO $
+                    "Set up "
+                      ++ show val
+                      ++ " repeat(s) to "
+                      ++ usrNameText
                 put $
                   Environment
                     (num + update_id newObj)
@@ -202,7 +199,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
             )
           else
             ( do
-                _ <- lift $ sendRepeatsH newObj newEnv
+                _ <- sendRepeatsH newObj
                 put newEnv
                 pure $ Report "number out of range"
             )
@@ -218,16 +215,16 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
 randomId :: IO Int
 randomId = randomRIO (1, 1000000)
 
-sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
-sendKeyboard obj env = do
-  randomId' <- randomId
-  question' <- createQuestion obj env
+sendKeyboard :: MessageDate -> StateT Environment IO (Response LC.ByteString)
+sendKeyboard obj = do
+  env <- get
+  randomId' <- lift randomId
+  question' <- lift $ createQuestion obj env
   let userId = username $ chat $ message obj
       conf = configuration env
-      crntMsngr = messenger conf
       string = createStringRequest conf $
         mconcat $
-          case crntMsngr of
+          case messenger conf of
             "TG" ->
               [ "/sendMessage?chat_id=",
                 show $ chat_id $ chat $ message obj,
@@ -245,12 +242,13 @@ sendKeyboard obj env = do
                 "&keyboard=",
                 stringToUrl $ LC.unpack $ encode keyboardVk
               ]
-  writingLine conf DEBUG $ show string
+  writingLine DEBUG $ show string
   httpLBS string
 
-sendComment :: Configuration -> MessageDate -> String -> IO (Response LC.ByteString)
-sendComment conf obj str = do
-  randomId' <- randomId
+sendComment :: MessageDate -> String -> StateT Environment IO (Response LC.ByteString)
+sendComment obj str = do
+  conf <- configuration <$> get
+  randomId' <- lift randomId
   let userId = username $ chat $ message obj
       string = createStringRequest conf $
         mconcat $
@@ -268,5 +266,5 @@ sendComment conf obj str = do
                 "&message=",
                 stringToUrl str
               ]
-  writingLine conf DEBUG $ show string
+  writingLine DEBUG $ show string
   httpLBS string

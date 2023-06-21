@@ -1,8 +1,8 @@
 module Telegram.Engine where
 
 import Control.Monad.State.Lazy
-  ( MonadState (get, put),
-    MonadTrans (lift),
+  ( get,
+    put,
     StateT,
   )
 import Environment
@@ -32,7 +32,7 @@ endlessCycle = do
   let conf = configuration env
       nothing _ = pure Nothing
   case obj of
-    Nothing -> lift $ writingLine conf ERROR "Broken request!"
+    Nothing -> writingLine ERROR "Broken request!"
     _ -> do
       let arr = case result <$> obj of
             Just [x] -> [x]

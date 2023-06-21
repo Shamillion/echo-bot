@@ -4,7 +4,8 @@ import Control.Monad.Identity
     runIdentity,
   )
 import Control.Monad.State.Lazy
-  ( evalStateT,
+  ( StateT, 
+    evalStateT,
     execStateT,
   )
 import qualified Data.Map.Lazy as Map
@@ -61,9 +62,9 @@ handlerForTestIfKeyWord :: WorkHandle Identity String String
 handlerForTestIfKeyWord =
   WorkHandle
     { writingLineH = \_ _ -> pure "writingLine",
-      sendKeyboardH = \_ _ -> pure "keyboard",
+      sendKeyboardH = \_ -> pure "keyboard",
       sendCommentH = \_ _ -> pure "comment",
-      sendRepeatsH = \_ _ -> pure "sendRepeats",
+      sendRepeatsH = \_ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
       getDataH = pure Nothing
     }
@@ -75,7 +76,7 @@ handlerForTestWordIsRepeat =
     { wordIsRepeatH = \_ _ _ _ -> pure $ Report "empty array"
     }
 
-nothing :: UpdateID -> Identity (Maybe WholeObject)
+nothing :: UpdateID -> StateT Environment Identity (Maybe WholeObject)
 nothing _ = pure Nothing
 
 messageDate :: String -> String -> MessageDate

@@ -1,11 +1,15 @@
 module Connect where
 
-import Config (Configuration)
 import Control.Concurrent (threadDelay)
 import Control.Exception (try)
-import Control.Monad.State.Lazy (when)
+import Control.Monad.State.Lazy
+  ( StateT,
+    lift,
+    when,
+  )
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Time (getCurrentTime)
+import Environment (Environment)
 import Logger.Data (Priority (DEBUG, ERROR))
 import Logger.Functions (writingLine)
 import Network.HTTP.Conduit
@@ -20,10 +24,10 @@ import Network.HTTP.Simple
 import System.Exit (die)
 
 -- Function for connecting to the server.
-connectToServer :: Configuration -> Request -> Int -> IO (Response LC.ByteString)
-connectToServer conf req num = do
-  x <- try $ httpLBS req
-  writingLine conf DEBUG $ show req
+connectToServer :: Request -> Int -> StateT Environment IO (Response LC.ByteString)
+connectToServer req num = do
+  x <- lift . try . httpLBS $ req
+  writingLine DEBUG $ show req
   case x of
     Left cf@(HttpExceptionRequest _ (ConnectionFailure _)) ->
       errorProcessing cf num
@@ -31,20 +35,22 @@ connectToServer conf req num = do
       errorProcessing rt num
     Left e -> do
       let err = show (e :: HttpException)
-      writingLine conf ERROR err
-      die err
+      writingLine ERROR err
+      lift $ die err
     Right v -> do
-      writingLine conf DEBUG $ show v
-      when (num /= 0) $ do
-        getCurrentTime >>= print
-        putStrLn "Connection restored"
+      writingLine DEBUG $ show v
+      lift $
+        when (num /= 0) $ do
+          getCurrentTime >>= print
+          putStrLn "Connection restored"
       pure v
   where
     errorProcessing err n = do
-      writingLine conf ERROR $ show (err :: HttpException)
-      when (n == 0) $ do
-        getCurrentTime >>= print
-        putStrLn "Connection Failure"
-      putStrLn "Trying to set a connection... "
-      threadDelay 1000000
-      connectToServer conf req (n + 1)
+      writingLine ERROR $ show (err :: HttpException)
+      lift $ do
+        when (n == 0) $ do
+          getCurrentTime >>= print
+          putStrLn "Connection Failure"
+        putStrLn "Trying to set a connection... "
+        threadDelay 1000000
+      connectToServer req (n + 1)

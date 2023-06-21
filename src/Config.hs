@@ -37,7 +37,7 @@ data Configuration = Configuration
 readConfigFile :: IO Configuration
 readConfigFile = do
   t <- time
-  content <- L.readFile "config.json"
+  content <- L.readFile "1config.json"
   case eitherDecode content of
     Right conf -> pure conf
     Left err -> do
