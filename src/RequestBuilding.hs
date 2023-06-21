@@ -13,7 +13,6 @@ import Config
     myToken,
   )
 import qualified Data.Map.Lazy as Map
-import qualified Data.Text as T
 import Environment
   ( Environment (configuration, userData),
     NumRepeats (NumRepeats),
@@ -45,7 +44,7 @@ createStringRequest conf str = parseRequest_ $
           "&access_token=",
           myToken conf,
           "&v=",
-          T.unpack $ apiVKVersion conf
+          apiVKVersion conf
         ]
 
 getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
@@ -64,7 +63,7 @@ createQuestion obj env = do
       [ "Currently set to ",
         show num,
         " repetitions.\n",
-        T.unpack . repeatMess . configuration $ env
+        repeatMess . configuration $ env
       ]
 
 stringToUrl :: String -> String

@@ -8,7 +8,6 @@ import Data.Aeson
     eitherDecode,
   )
 import qualified Data.ByteString.Lazy as L
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Logger.Data
   ( Priority,
@@ -19,18 +18,18 @@ import System.Exit (die)
 
 -- Data type for the configuration file.
 data Configuration = Configuration
-  { messenger :: T.Text,
-    hostTG :: T.Text,
-    hostVK :: T.Text,
-    tokenTG :: T.Text,
-    tokenVK :: T.Text,
+  { messenger :: String,
+    hostTG :: String,
+    hostVK :: String,
+    tokenTG :: String,
+    tokenVK :: String,
     groupIdVK :: Int,
-    apiVKVersion :: T.Text,
-    helpMess :: [T.Text],
-    repeatMess :: T.Text,
+    apiVKVersion :: String,
+    helpMess :: [String],
+    repeatMess :: String,
     defaultRepeats :: Int,
     priorityLevel :: Priority,
-    logOutput :: T.Text
+    logOutput :: String
   }
   deriving (Show, Generic, FromJSON)
 
@@ -51,15 +50,15 @@ readConfigFile = do
 myHost :: Configuration -> String
 myHost conf = do
   case messenger conf of
-    "TG" -> T.unpack $ hostTG conf
-    _ -> T.unpack $ hostVK conf
+    "TG" -> hostTG conf
+    _ -> hostVK conf
 
 -- The token of selected messenger.
 myToken :: Configuration -> String
 myToken conf = do
   case messenger conf of
-    "TG" -> T.unpack $ tokenTG conf
-    _ -> T.unpack $ tokenVK conf
+    "TG" -> tokenTG conf
+    _ -> tokenVK conf
 
 messengerHost :: Configuration -> String
 messengerHost = (++ "/bot") . myHost

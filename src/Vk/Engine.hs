@@ -76,7 +76,7 @@ getLongPollServerRequest conf =
         "&access_token=",
         myToken conf,
         "&v=",
-        T.unpack $ apiVKVersion conf
+        apiVKVersion conf
       ]
 
 -- Main program cycle for VK.

@@ -61,7 +61,7 @@ getData = do
               pure obj
       )
     else lift $ do
-      _ <- writingLine conf ERROR $ "statusCode " ++ show code
+      writingLine conf ERROR $ "statusCode " ++ show code
       pure Nothing
 
 -- Function for getting update_id  for the first time.

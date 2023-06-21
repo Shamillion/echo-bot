@@ -104,7 +104,7 @@ repeatMessageVk conf obj = do
               "&message=",
               stringToUrl $ T.unpack str ++ add ++ attachment arr userId
             ]
-  _ <- writingLine conf DEBUG $ show string
+  writingLine conf DEBUG $ show string
   httpLBS string
 
 -- Processing of attachments for VK.

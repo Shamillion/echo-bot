@@ -130,7 +130,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
     Just "/help" -> do
       _ <- lift $ do
         _ <- writingLineH conf INFO $ "Received /help from " ++ usrName
-        sendCommentH conf obj $ T.unpack $ mconcat $ helpMess conf
+        sendCommentH conf obj $ mconcat $ helpMess conf
       pure Help
     _ -> do
       _ <- lift $ sendRepeatsH obj env
