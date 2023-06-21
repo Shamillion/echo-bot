@@ -8,7 +8,6 @@ import Control.Monad.State.Lazy
     execStateT,
   )
 import qualified Data.Map.Lazy as Map
-import qualified Data.Text as T
 import Environment
   ( Environment (..),
     NumRepeats (..),
@@ -79,7 +78,7 @@ handlerForTestWordIsRepeat =
 nothing :: UpdateID -> Identity (Maybe WholeObject)
 nothing _ = pure Nothing
 
-messageDate :: T.Text -> T.Text -> MessageDate
+messageDate :: String -> String -> MessageDate
 messageDate usr txt =
   MessageDate
     { update_id = 101,
@@ -96,12 +95,12 @@ messageDate usr txt =
           }
     }
 
-testingFunctionIfKeyWord :: T.Text -> Command
+testingFunctionIfKeyWord :: String -> Command
 testingFunctionIfKeyWord txt =
   runIdentity $
     evalStateT (ifKeyWord handlerForTestIfKeyWord nothing $ messageDate "testUsr" txt) environmentT
 
-testingFunctionWordIsRepeat :: T.Text -> T.Text -> T.Text -> Command
+testingFunctionWordIsRepeat :: String -> String -> String -> Command
 testingFunctionWordIsRepeat usr1 usr2 txt =
   runIdentity $
     evalStateT
@@ -113,7 +112,7 @@ testingFunctionWordIsRepeat usr1 usr2 txt =
       )
       environmentT
 
-testingFunctionWordIsRepeat' :: T.Text -> T.Text -> T.Text -> Maybe NumRepeats
+testingFunctionWordIsRepeat' :: String -> String -> String -> Maybe NumRepeats
 testingFunctionWordIsRepeat' usr1 usr2 txt =
   Map.lookup (Username usr1) $
     userData $
@@ -127,7 +126,7 @@ testingFunctionWordIsRepeat' usr1 usr2 txt =
           )
           environmentT
 
-testingFunctionWordIsRepeatWithEmptyArr :: T.Text -> T.Text -> Command
+testingFunctionWordIsRepeatWithEmptyArr :: String -> String -> Command
 testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
   runIdentity $
     evalStateT
@@ -148,7 +147,7 @@ testsFunctionIfKeyWord = do
     testingFunctionIfKeyWord "/repeat" `shouldBe` Report "/repeat"
 
   it "catch the others" $
-    verbose $ \x xs -> testingFunctionIfKeyWord (T.pack (x : xs)) == Report "not a keyword"
+    verbose $ \x xs -> testingFunctionIfKeyWord (x : xs) == Report "not a keyword"
 
 testsFunctionWordIsRepeat :: SpecWith ()
 testsFunctionWordIsRepeat = do

@@ -8,15 +8,14 @@ import Data.Aeson
     Value (Object),
     (.:),
   )
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 import Telegram.Data as TG (Media)
 
 -- Data types for VK answer on getLongPollServer request.
 data VkKeyServerTs = VkKeyServerTs
-  { key :: T.Text,
-    server :: T.Text,
-    ts :: T.Text
+  { key :: String,
+    server :: String,
+    ts :: String
   }
   deriving (Show, Generic, FromJSON)
 
@@ -26,7 +25,7 @@ newtype VkResponse = VkResponse
 
 data VkError = VkError
   { error_code :: Int,
-    error_msg :: T.Text
+    error_msg :: String
   }
   deriving (Show)
 
@@ -41,7 +40,7 @@ instance FromJSON VkError where
 -- Data types for VK answer on
 --   BotsLongPollAPI request.
 data VkData = VkData
-  { offset :: T.Text,
+  { offset :: String,
     updates :: [Updates]
   }
   deriving (Show)
@@ -54,7 +53,7 @@ instance FromJSON VkData where
   parseJSON _ = mempty
 
 data Updates = Updates
-  { updates_type :: T.Text,
+  { updates_type :: String,
     updates_object :: ObjectVK
   }
   deriving (Show)
@@ -79,7 +78,7 @@ instance FromJSON ObjectVK where
 data MessageVK = MessageVK
   { from_id :: Int,
     messageVK_id :: Int,
-    messageVK_text :: T.Text,
+    messageVK_text :: String,
     messageVK_attachments :: [Media]
   }
   deriving (Show)

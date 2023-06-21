@@ -8,7 +8,6 @@ import Config
   )
 import qualified Data.Map.Lazy as Map
 import Data.String (IsString)
-import qualified Data.Text as T
 
 newtype UpdateID = UpdateID Int
   deriving (Eq)
@@ -17,9 +16,9 @@ newtype UpdateID = UpdateID Int
 instance Show UpdateID where
   show (UpdateID a) = show a
 
-newtype Username = Username T.Text
+newtype Username = Username String
   deriving (Eq, Ord)
-  deriving (IsString) via T.Text
+  deriving (IsString) via String
 
 newtype NumRepeats = NumRepeats Int
   deriving (Eq, Show)

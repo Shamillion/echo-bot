@@ -16,7 +16,6 @@ import Data.Aeson
   )
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
-import qualified Data.Text as T
 import Environment
   ( Environment (..),
     NumRepeats (..),
@@ -114,7 +113,7 @@ ifKeyWord ::
   StateT Environment m Command
 ifKeyWord WorkHandle {..} getDataVk obj = do
   env <- get
-  let usrName = T.unpack $ username $ chat $ message obj
+  let usrName = username $ chat $ message obj
       conf = configuration env
   case textM $ message obj of
     Just "/repeat" -> do
@@ -168,7 +167,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if messenger conf == "TG" then 1 else 0
   val <- lift $
-    case textM (message newObj) >>= readMaybe . T.unpack of
+    case textM (message newObj) >>= readMaybe of
       Just n -> pure n
       Nothing -> writingLineH conf ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
@@ -189,7 +188,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                       "Set up "
                         ++ show val
                         ++ " repeat(s) to "
-                        ++ T.unpack usrNameText
+                        ++ usrNameText
                 put $
                   Environment
                     (num + update_id newObj)
@@ -223,7 +222,7 @@ sendKeyboard :: MessageDate -> Environment -> IO (Response LC.ByteString)
 sendKeyboard obj env = do
   randomId' <- randomId
   question' <- createQuestion obj env
-  let userId = T.unpack $ username $ chat $ message obj
+  let userId = username $ chat $ message obj
       conf = configuration env
       crntMsngr = messenger conf
       string = createStringRequest conf $
@@ -252,7 +251,7 @@ sendKeyboard obj env = do
 sendComment :: Configuration -> MessageDate -> String -> IO (Response LC.ByteString)
 sendComment conf obj str = do
   randomId' <- randomId
-  let userId = T.unpack $ username $ chat $ message obj
+  let userId = username $ chat $ message obj
       string = createStringRequest conf $
         mconcat $
           case messenger conf of

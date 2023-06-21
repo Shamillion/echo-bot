@@ -15,7 +15,6 @@ import Control.Monad.State.Lazy
     StateT,
   )
 import Data.Aeson (eitherDecode)
-import qualified Data.Text as T
 import Environment
   ( Environment (..),
   )
@@ -44,7 +43,7 @@ import Vk.Data
 import Vk.Functions (getWholeObjectFromVk)
 
 -- Function for receiving data from the VK server.
-getVkData :: Configuration -> T.Text -> T.Text -> T.Text -> IO (Maybe WholeObject)
+getVkData :: Configuration -> String -> String -> String -> IO (Maybe WholeObject)
 getVkData conf s k t = do
   x <- connectToServer conf req 0
   writingLine conf DEBUG $ show req
@@ -62,8 +61,7 @@ getVkData conf s k t = do
   where
     req =
       parseRequest_ $
-        T.unpack $
-          mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
+        mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
 
 getLongPollServerRequest :: Configuration -> Request
 getLongPollServerRequest conf =
@@ -107,12 +105,12 @@ botsLongPollAPI = do
         Nothing -> botsLongPollAPI
         Just w -> do
           let arr = result w
-              getVkData' lastUpdId = getVkData cnf s k $ T.pack $ show lastUpdId
+              getVkData' lastUpdId = getVkData cnf s k $ show lastUpdId
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
           put $ Environment update_id' (userData env) (configuration env)
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
-          getAnswer s k $ T.pack $ show $ lastUpdate newEnv
+          getAnswer s k $ show $ lastUpdate newEnv
     errorProcessing cnf bs = do
       let errObj = eitherDecode $ getResponseBody bs
       case errObj of
@@ -124,5 +122,5 @@ botsLongPollAPI = do
                 [ "Error code ",
                   show $ error_code dta,
                   ". ",
-                  T.unpack $ error_msg dta
+                  error_msg dta
                 ]
