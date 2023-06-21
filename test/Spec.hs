@@ -4,7 +4,7 @@ import Control.Monad.Identity
     runIdentity,
   )
 import Control.Monad.State.Lazy
-  ( StateT, 
+  ( StateT,
     evalStateT,
     execStateT,
   )

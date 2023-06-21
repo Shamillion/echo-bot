@@ -3,7 +3,7 @@
 module Environment where
 
 import Config
-  ( Configuration(..),
+  ( Configuration (..),
     readConfigFile,
   )
 import qualified Data.Map.Lazy as Map
@@ -38,4 +38,3 @@ environment = do
         userData = Map.singleton "" . NumRepeats . defaultRepeats $ conf,
         configuration = conf
       }
-

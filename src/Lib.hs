@@ -3,13 +3,16 @@
 module Lib where
 
 import Config
-  ( Configuration (helpMess, messenger),
+  ( Configuration
+      ( helpMess,
+        messenger
+      ),
   )
 import Control.Monad.State.Lazy
-  ( get,
-    put,
+  ( StateT,
+    get,
     lift,
-    StateT,
+    put,
     replicateM_,
   )
 import Data.Aeson
@@ -122,7 +125,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
       _ <- sendKeyboardH obj
       fromServer <- case messenger conf of
         "TG" -> getDataH
-        _ ->getDataVk . lastUpdate $ env
+        _ -> getDataVk . lastUpdate $ env
       let arr = case result <$> fromServer of
             Just ls -> ls
             _ -> []

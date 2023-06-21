@@ -10,10 +10,10 @@ import Config
   )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
-  ( get, 
-    put,
+  ( StateT,
+    get,
     lift,
-    StateT,
+    put,
   )
 import Data.Aeson (eitherDecode)
 import Environment
@@ -116,10 +116,10 @@ botsLongPollAPI = do
       case errObj of
         Left err -> writingLine ERROR $ show err
         Right dta ->
-            writingLine ERROR $
-              mconcat
-                [ "Error code ",
-                  show $ error_code dta,
-                  ". ",
-                  error_msg dta
-                ]
+          writingLine ERROR $
+            mconcat
+              [ "Error code ",
+                show $ error_code dta,
+                ". ",
+                error_msg dta
+              ]

@@ -1,9 +1,9 @@
 module Telegram.Engine where
 
 import Control.Monad.State.Lazy
-  ( get,
+  ( StateT,
+    get,
     put,
-    StateT,
   )
 import Environment
   ( Environment

@@ -3,12 +3,17 @@ module Vk.Functions where
 import Config
   ( Configuration (groupIdVK),
   )
-import Control.Monad.State.Lazy (StateT, get, lift)
+import Control.Monad.State.Lazy
+  ( StateT,
+    get,
+    lift,
+  )
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Functor.Identity (runIdentity)
 import Environment
   ( Environment,
-    UpdateID (..), configuration
+    UpdateID (..),
+    configuration,
   )
 import Logger.Data
   ( Priority (DEBUG, ERROR),

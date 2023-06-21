@@ -6,10 +6,10 @@ import Config
   )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
-  ( get, 
-    put,
+  ( StateT,
+    get,
     lift,
-    StateT,
+    put,
   )
 import Data.Aeson (decode)
 import Data.Time (getCurrentTime)

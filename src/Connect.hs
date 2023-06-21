@@ -13,7 +13,10 @@ import Environment (Environment)
 import Logger.Data (Priority (DEBUG, ERROR))
 import Logger.Functions (writingLine)
 import Network.HTTP.Conduit
-  ( HttpExceptionContent (ConnectionFailure, ResponseTimeout),
+  ( HttpExceptionContent
+      ( ConnectionFailure,
+        ResponseTimeout
+      ),
   )
 import Network.HTTP.Simple
   ( HttpException (HttpExceptionRequest),
