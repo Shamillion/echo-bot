@@ -45,24 +45,24 @@ import Vk.Functions (getWholeObjectFromVk)
 
 -- Function for receiving data from the VK server.
 getVkData :: String -> String -> String -> StateT Environment IO (Maybe WholeObject)
-getVkData s k t = do
-  x <- connectToServer req 0
+getVkData serverVk keyVk tsVk = do
+  resp <- connectToServer req 0
   writingLine DEBUG $ show req
-  let obj = eitherDecode $ getResponseBody x
+  let obj = eitherDecode $ getResponseBody resp
   case obj of
-    Left e -> do
-      lift $ print $ getResponseBody x
-      writingLine ERROR e
+    Left err -> do
+      lift $ print $ getResponseBody resp
+      writingLine ERROR err
       pure Nothing
-    Right v -> do
-      writingLine DEBUG $ show v
-      case updates v of
-        [] -> getVkData s k $ offset v
-        _ -> pure <$> getWholeObjectFromVk v
+    Right vkData -> do
+      writingLine DEBUG $ show vkData
+      case updates vkData of
+        [] -> getVkData serverVk keyVk $ offset vkData
+        _ -> pure <$> getWholeObjectFromVk vkData
   where
     req =
       parseRequest_ $
-        mconcat [s, "?act=a_check&key=", k, "&ts=", t, "&wait=25"]
+        mconcat [serverVk, "?act=a_check&key=", keyVk, "&ts=", tsVk, "&wait=25"]
 
 getLongPollServerRequest :: Configuration -> Request
 getLongPollServerRequest conf =
@@ -82,14 +82,14 @@ getLongPollServerRequest conf =
 botsLongPollAPI :: StateT Environment IO ()
 botsLongPollAPI = do
   conf <- configuration <$> get
-  x <- connectToServer (getLongPollServerRequest conf) 0
-  let code = getResponseStatusCode x
+  resp <- connectToServer (getLongPollServerRequest conf) 0
+  let code = getResponseStatusCode resp
   if code == 200
     then
       ( do
-          let obj = eitherDecode $ getResponseBody x
+          let obj = eitherDecode $ getResponseBody resp
           case obj of
-            Left _ -> errorProcessing x
+            Left _ -> errorProcessing resp
             Right v -> do
               let server' = server $ response v
                   key' = key $ response v
@@ -98,28 +98,28 @@ botsLongPollAPI = do
       )
     else writingLine ERROR $ "statusCode " ++ show code
   where
-    getAnswer s k t = do
+    getAnswer serverVk keyVk tsVk = do
       env <- get
-      getVkDt <- getVkData s k t
+      getVkDt <- getVkData serverVk keyVk tsVk
       case getVkDt of
         Nothing -> botsLongPollAPI
-        Just w -> do
-          let arr = result w
-              getVkData' lastUpdId = getVkData s k $ show lastUpdId
+        Just wholeObj -> do
+          let arr = result wholeObj
+              getVkData' lastUpdId = getVkData serverVk keyVk $ show lastUpdId
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
           put $ Environment update_id' (userData env) (configuration env)
           mapM_ (ifKeyWord handler getVkData') arr
           newEnv <- get
-          getAnswer s k $ show $ lastUpdate newEnv
-    errorProcessing bs = do
-      let errObj = eitherDecode $ getResponseBody bs
+          getAnswer serverVk keyVk $ show $ lastUpdate newEnv
+    errorProcessing resp = do
+      let errObj = eitherDecode $ getResponseBody resp
       case errObj of
         Left err -> writingLine ERROR $ show err
-        Right dta ->
+        Right vkErr ->
           writingLine ERROR $
             mconcat
               [ "Error code ",
-                show $ error_code dta,
+                show $ error_code vkErr,
                 ". ",
-                error_msg dta
+                error_msg vkErr
               ]

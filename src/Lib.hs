@@ -127,7 +127,7 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
         "TG" -> getDataH
         _ -> getDataVk . lastUpdate $ env
       let arr = case result <$> fromServer of
-            Just ls -> ls
+            Just messageDateLs -> messageDateLs
             _ -> []
       wordIsRepeatH WorkHandle {..} getDataVk obj arr
     Just "/help" -> do
@@ -155,7 +155,7 @@ wordIsRepeat WorkHandle {..} getDataVk obj [] = do
     "TG" -> getDataH
     _ -> getDataVk $ lastUpdate env
   newArr <- case result <$> fromServer of
-    Just n -> pure n
+    Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
@@ -169,24 +169,24 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
       num = UpdateID $ if messenger conf == "TG" then 1 else 0
-  val <- case textM (message newObj) >>= readMaybe of
-    Just n -> pure n
+  numRepeats <- case textM (message newObj) >>= readMaybe of
+    Just int -> pure int
     Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
-      ( if val `elem` [1 .. 5]
+      ( if numRepeats `elem` [1 .. 5]
           then
             ( do
                 _ <-
                   sendCommentH obj $
                     "Done! Set up "
-                      ++ show val
+                      ++ show numRepeats
                       ++ " repeat(s)."
                 _ <-
                   writingLineH INFO $
                     "Set up "
-                      ++ show val
+                      ++ show numRepeats
                       ++ " repeat(s) to "
                       ++ usrNameText
                 put $
@@ -194,11 +194,11 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
                     (num + update_id newObj)
                     ( Map.insert
                         usrName
-                        (NumRepeats val)
+                        (NumRepeats numRepeats)
                         (userData env)
                     )
                     (configuration env)
-                pure $ Repeat val
+                pure $ Repeat numRepeats
             )
           else
             ( do

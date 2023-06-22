@@ -54,8 +54,8 @@ getWholeObjectFromVk obj = do
   conf <- configuration <$> get
   num <-
     UpdateID <$> case readEither . offset $ obj of
-      Right n -> pure n
-      Left e -> writingLine ERROR e >> pure 0
+      Right int -> pure int
+      Left err -> writingLine ERROR err >> pure 0
   let ls = map (getMessageDateFromVk conf num) $ updates obj
   pure $
     WholeObject
@@ -90,10 +90,10 @@ getChatFromVk conf obj =
 repeatMessageVk :: MessageDate -> StateT Environment IO (Response LC.ByteString)
 repeatMessageVk obj = do
   conf <- configuration <$> get
-  r <- lift (randomRIO (1, 1000000) :: IO Int)
+  randInt <- lift (randomRIO (1, 1000000) :: IO Int)
   let userId = username $ chat $ message obj
       str = case textM $ message obj of
-        Just s -> s
+        Just messText -> messText
         _ -> ""
       arr = case attachments $ message obj of
         Just ls -> ls
@@ -108,7 +108,7 @@ repeatMessageVk obj = do
           mconcat
             [ userId,
               "&random_id=",
-              show r,
+              show randInt,
               "&message=",
               stringToUrl $ str ++ add ++ attachment arr userId
             ]
@@ -119,23 +119,23 @@ repeatMessageVk obj = do
 attachment :: [Media] -> String -> String
 attachment [] _ = ""
 attachment (x : xs) userId = case x of
-  Sticker _ n -> "&sticker_id=" ++ show n ++ attachment xs userId
-  AudioMessage _ l -> l ++ attachment xs userId
-  Others t mI oI u k -> runIdentity $ do
-    let lnk = case u of
+  Sticker _ stickerId -> "&sticker_id=" ++ show stickerId ++ attachment xs userId
+  AudioMessage _ lnk -> lnk ++ attachment xs userId
+  Others typeMedia mediaId ownerId urlMedia accessKey -> runIdentity $ do
+    let lnk = case urlMedia of
           Just txt -> txt
           _ -> ""
     pure $
-      if t == "doc" && userId == show oI
+      if typeMedia == "doc" && userId == show ownerId
         then lnk ++ "," ++ attachment xs userId
         else
           mconcat
-            [ t,
-              show oI,
+            [ typeMedia,
+              show ownerId,
               "_",
-              show mI,
-              case k of
-                Just s -> "_" ++ s
+              show mediaId,
+              case accessKey of
+                Just str -> "_" ++ str
                 _ -> "",
               ",",
               attachment xs userId

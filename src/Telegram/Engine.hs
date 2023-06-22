@@ -35,7 +35,7 @@ endlessCycle = do
     Nothing -> writingLine ERROR "Broken request!"
     _ -> do
       let arr = case result <$> obj of
-            Just [x] -> [x]
+            Just [messageDate] -> [messageDate]
             _ -> []
           update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
       put $ Environment (1 + update_id') (userData env) conf
