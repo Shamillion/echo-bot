@@ -8,13 +8,12 @@ import Data.Aeson
     object,
     (.=),
   )
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 
 -- Data types for the VK keyboard.
 data ActionVk = ActionVk
-  { typeActionVk :: T.Text,
-    label :: T.Text
+  { typeActionVk :: String,
+    label :: String
   }
   deriving (Show)
 
@@ -53,7 +52,7 @@ toAction :: Int -> ActionVk
 toAction num =
   ActionVk
     { typeActionVk = "text",
-      label = T.pack $ show num
+      label = show num
     }
 
 keyboardVk :: KeyboardVk

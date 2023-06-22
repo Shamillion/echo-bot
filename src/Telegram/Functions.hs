@@ -6,9 +6,10 @@ import Config
   )
 import Connect (connectToServer)
 import Control.Monad.State.Lazy
-  ( MonadState (get, put),
-    MonadTrans (lift),
-    StateT,
+  ( StateT,
+    get,
+    lift,
+    put,
   )
 import Data.Aeson (decode)
 import Data.Time (getCurrentTime)
@@ -47,7 +48,7 @@ getData = do
       req =
         parseRequest_ $
           mconcat ["https://", messengerHost conf, myToken conf, str]
-  x <- lift $ connectToServer conf req 0
+  x <- connectToServer req 0
   let code = getResponseStatusCode x
   if code == 200
     then
@@ -60,8 +61,8 @@ getData = do
             _ -> do
               pure obj
       )
-    else lift $ do
-      _ <- writingLine conf ERROR $ "statusCode " ++ show code
+    else do
+      writingLine ERROR $ "statusCode " ++ show code
       pure Nothing
 
 -- Function for getting update_id  for the first time.

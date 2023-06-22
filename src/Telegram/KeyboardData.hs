@@ -4,12 +4,11 @@
 module Telegram.KeyboardData where
 
 import Data.Aeson (ToJSON)
-import qualified Data.Text as T
 import GHC.Generics (Generic)
 
 -- Data type for the Telegram keyboard.
 newtype KeyboardButton = KeyboardButton
-  {text :: T.Text}
+  {text :: String}
   deriving (Show, Generic, ToJSON)
 
 data ReplyKeyboardMarkup = ReplyKeyboardMarkup
@@ -21,7 +20,7 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
 
 -- Creating keyboard for TG.
 toKeyboardButton :: Int -> KeyboardButton
-toKeyboardButton num = KeyboardButton {text = T.pack $ show num}
+toKeyboardButton num = KeyboardButton {text = show num}
 
 createKeyboard :: ReplyKeyboardMarkup
 createKeyboard =

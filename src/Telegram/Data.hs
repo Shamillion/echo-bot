@@ -13,7 +13,6 @@ import Data.Aeson
     (.:?),
   )
 import Data.Foldable (asum)
-import qualified Data.Text as T
 import Environment
   ( UpdateID (UpdateID),
   )
@@ -22,7 +21,7 @@ import GHC.Generics (Generic)
 -- Data types for the Telegram answer.
 data Chat = Chat
   { chat_id :: Int,
-    username :: T.Text
+    username :: String
   }
   deriving (Show)
 
@@ -39,7 +38,7 @@ errorChat = Chat 0 "error"
 data Message = Message
   { message_id :: Int,
     chat :: Chat,
-    textM :: Maybe T.Text,
+    textM :: Maybe String,
     attachments :: Maybe [Media]
   }
   deriving (Show)
@@ -83,19 +82,19 @@ data WholeObject = WholeObject
 
 data Media
   = Sticker
-      { type_media :: T.Text,
+      { type_media :: String,
         sticker_id :: Int
       }
   | AudioMessage
-      { type_media :: T.Text,
-        link_mp3 :: T.Text
+      { type_media :: String,
+        link_mp3 :: String
       }
   | Others
-      { type_media :: T.Text,
+      { type_media :: String,
         media_id :: Int,
         owner_id :: Int,
-        url :: Maybe T.Text,
-        access_key :: Maybe T.Text
+        url :: Maybe String,
+        access_key :: Maybe String
       }
   deriving (Show)
 

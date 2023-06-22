@@ -3,11 +3,17 @@ module Vk.Functions where
 import Config
   ( Configuration (groupIdVK),
   )
+import Control.Monad.State.Lazy
+  ( StateT,
+    get,
+    lift,
+  )
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Functor.Identity (runIdentity)
-import qualified Data.Text as T
 import Environment
-  ( UpdateID (..),
+  ( Environment,
+    UpdateID (..),
+    configuration,
   )
 import Logger.Data
   ( Priority (DEBUG, ERROR),
@@ -43,12 +49,13 @@ import Vk.Data
   )
 
 -- Functions for converting VK's data to Telegrams's data.
-getWholeObjectFromVk :: Configuration -> VkData -> IO WholeObject
-getWholeObjectFromVk conf obj = do
+getWholeObjectFromVk :: VkData -> StateT Environment IO WholeObject
+getWholeObjectFromVk obj = do
+  conf <- configuration <$> get
   num <-
-    UpdateID <$> case readEither . T.unpack . offset $ obj of
+    UpdateID <$> case readEither . offset $ obj of
       Right n -> pure n
-      Left e -> writingLine conf ERROR e >> pure 0
+      Left e -> writingLine ERROR e >> pure 0
   let ls = map (getMessageDateFromVk conf num) $ updates obj
   pure $
     WholeObject
@@ -76,14 +83,15 @@ getChatFromVk :: Configuration -> Updates -> Chat
 getChatFromVk conf obj =
   Chat
     { chat_id = groupIdVK conf,
-      username = T.pack $ show $ from_id $ messageVK $ updates_object obj
+      username = show $ from_id $ messageVK $ updates_object obj
     }
 
 -- Sending a request to VK to return a message.
-repeatMessageVk :: Configuration -> MessageDate -> IO (Response LC.ByteString)
-repeatMessageVk conf obj = do
-  r <- randomRIO (1, 1000000) :: IO Int
-  let userId = T.unpack $ username $ chat $ message obj
+repeatMessageVk :: MessageDate -> StateT Environment IO (Response LC.ByteString)
+repeatMessageVk obj = do
+  conf <- configuration <$> get
+  r <- lift (randomRIO (1, 1000000) :: IO Int)
+  let userId = username $ chat $ message obj
       str = case textM $ message obj of
         Just s -> s
         _ -> ""
@@ -102,9 +110,9 @@ repeatMessageVk conf obj = do
               "&random_id=",
               show r,
               "&message=",
-              stringToUrl $ T.unpack str ++ add ++ attachment arr userId
+              stringToUrl $ str ++ add ++ attachment arr userId
             ]
-  _ <- writingLine conf DEBUG $ show string
+  writingLine DEBUG $ show string
   httpLBS string
 
 -- Processing of attachments for VK.
@@ -112,22 +120,22 @@ attachment :: [Media] -> String -> String
 attachment [] _ = ""
 attachment (x : xs) userId = case x of
   Sticker _ n -> "&sticker_id=" ++ show n ++ attachment xs userId
-  AudioMessage _ l -> T.unpack l ++ attachment xs userId
+  AudioMessage _ l -> l ++ attachment xs userId
   Others t mI oI u k -> runIdentity $ do
     let lnk = case u of
           Just txt -> txt
           _ -> ""
     pure $
       if t == "doc" && userId == show oI
-        then T.unpack lnk ++ "," ++ attachment xs userId
+        then lnk ++ "," ++ attachment xs userId
         else
           mconcat
-            [ T.unpack t,
+            [ t,
               show oI,
               "_",
               show mI,
               case k of
-                Just s -> "_" ++ T.unpack s
+                Just s -> "_" ++ s
                 _ -> "",
               ",",
               attachment xs userId

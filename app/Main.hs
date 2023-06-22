@@ -19,11 +19,14 @@ main :: IO ()
 main = do
   env <- environment
   let conf = configuration env
+      logString s = putStrLn s >> evalStateT (writingLine INFO s) env
   case messenger conf of
     "TG" -> do
-      mapM_ (\f -> f "Started Telegram echobot.") [putStrLn, writingLine conf INFO]
+      let str = "Started Telegram echobot."
+      logString str
       newEnv <- execStateT firstUpdateIDSession env
       evalStateT endlessCycle newEnv
     _ -> do
-      mapM_ (\f -> f "Started VK echobot.") [putStrLn, writingLine conf INFO]
+      let str = "Started VK echobot."
+      logString str
       evalStateT botsLongPollAPI env
