@@ -36,12 +36,12 @@ data Configuration = Configuration
 -- Getting information from configuration file.
 readConfigFile :: IO Configuration
 readConfigFile = do
-  t <- time
+  time' <- time
   content <- L.readFile "config.json"
   case eitherDecode content of
     Right conf -> pure conf
     Left err -> do
-      let str = t ++ " UTC   " ++ "ERROR  " ++ " - " ++ err
+      let str = time' ++ " UTC   " ++ "ERROR  " ++ " - " ++ err
       print str
       appendFile logFile $ str ++ "\n"
       die "Error reading the configuration file! Check out config.json!"

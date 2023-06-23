@@ -51,7 +51,7 @@ getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
 getNumRepeats obj env = do
   pure $ case Map.lookup usrName $ userData env of
     Nothing -> NumRepeats . defaultRepeats . configuration $ env
-    Just n -> n
+    Just num -> num
   where
     usrName = Username . username $ chat $ message obj
 
@@ -69,8 +69,8 @@ createQuestion obj env = do
 stringToUrl :: String -> String
 stringToUrl = Prelude.foldl encodingChar ""
   where
-    encodingChar acc c =
-      acc ++ case c of
+    encodingChar acc chr =
+      acc ++ case chr of
         '{' -> "%7B"
         '}' -> "%7D"
         '[' -> "%5B"
@@ -81,4 +81,4 @@ stringToUrl = Prelude.foldl encodingChar ""
         ',' -> "%2C"
         '.' -> "%2E"
         ':' -> "%3A"
-        _ -> [c]
+        _ -> [chr]

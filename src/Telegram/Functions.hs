@@ -48,12 +48,12 @@ getData = do
       req =
         parseRequest_ $
           mconcat ["https://", messengerHost conf, myToken conf, str]
-  x <- connectToServer req 0
-  let code = getResponseStatusCode x
+  resp <- connectToServer req 0
+  let code = getResponseStatusCode resp
   if code == 200
     then
       ( do
-          let obj = decode $ getResponseBody x
+          let obj = decode $ getResponseBody resp
           case result <$> obj of
             Just [] -> do
               put $ Environment 1 (userData env) (configuration env)
@@ -78,7 +78,7 @@ firstUpdateIDSession = do
       lift $ putStrLn "Connection established"
       let update_id' = case result <$> obj of
             Just [] -> 0
-            Just md -> (\(x : _) -> update_id x) (reverse md)
+            Just messageDateLs -> (\(x : _) -> update_id x) (reverse messageDateLs)
             _ -> 0
       if lastUpdate env == 1
         then put $ Environment update_id' (userData env) (configuration env)
