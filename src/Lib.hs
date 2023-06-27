@@ -89,7 +89,6 @@ data WorkHandle m a b = WorkHandle
     sendRepeatsH :: MessageDate -> StateT Environment m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
-      (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m Command,
@@ -97,8 +96,8 @@ data WorkHandle m a b = WorkHandle
   }
 
 -- Handle for work of echobot.
-handler :: WorkHandle IO () (Response LC.ByteString)
-handler =
+handlerTg :: WorkHandle IO () (Response LC.ByteString)
+handlerTg =
   WorkHandle
     { writingLineH = writingLine,
       sendKeyboardH = sendKeyboard,
@@ -112,10 +111,9 @@ handler =
 ifKeyWord ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m Command
-ifKeyWord WorkHandle {..} getDataVk obj = do
+ifKeyWord WorkHandle {..} obj = do
   env <- get
   let usrName = username $ chat $ message obj
       conf = configuration env
@@ -123,13 +121,11 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
     Just "/repeat" -> do
       _ <- writingLineH INFO $ "Received /repeat from " ++ usrName
       _ <- sendKeyboardH obj
-      fromServer <- case messenger conf of
-        "TG" -> getDataH
-        _ -> getDataVk . lastUpdate $ env
+      fromServer <- getDataH
       let arr = case result <$> fromServer of
             Just messageDateLs -> messageDateLs
             _ -> []
-      wordIsRepeatH WorkHandle {..} getDataVk obj arr
+      wordIsRepeatH WorkHandle {..} obj arr
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
@@ -143,24 +139,18 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
-wordIsRepeat WorkHandle {..} getDataVk obj [] = do
-  -- getDataVk needed to get updates from VK.
-  env <- get
-  let conf = configuration env
-  fromServer <- case messenger conf of
-    "TG" -> getDataH
-    _ -> getDataVk $ lastUpdate env
+wordIsRepeat WorkHandle {..} obj [] = do
+  fromServer <- getDataH
   newArr <- case result <$> fromServer of
     Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  wordIsRepeatH WorkHandle {..} getDataVk obj newArr
-wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
+  wordIsRepeatH WorkHandle {..} obj newArr
+wordIsRepeat WorkHandle {..} obj (x : xs) = do
   env <- get
   let conf = configuration env
       newObj = x
@@ -209,9 +199,9 @@ wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
       )
     else
       ( do
-          _ <- ifKeyWord WorkHandle {..} getDataVk newObj
+          _ <- ifKeyWord WorkHandle {..} newObj
           put newEnv
-          wordIsRepeatH WorkHandle {..} getDataVk obj xs
+          wordIsRepeatH WorkHandle {..} obj xs
       )
 
 -- Generating random numbers for VK requests.

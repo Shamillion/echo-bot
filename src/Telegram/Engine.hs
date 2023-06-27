@@ -13,7 +13,7 @@ import Environment
       ),
   )
 import Lib
-  ( handler,
+  ( handlerTg,
     ifKeyWord,
   )
 import Logger.Data (Priority (ERROR))
@@ -30,7 +30,6 @@ endlessCycle = do
   env <- get
   obj <- getData
   let conf = configuration env
-      nothing _ = pure Nothing
   case obj of
     Nothing -> writingLine ERROR "Broken request!"
     _ -> do
@@ -40,5 +39,5 @@ endlessCycle = do
           update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
       put $ Environment (1 + update_id') (userData env) conf
       _ <- get
-      mapM_ (ifKeyWord handler nothing) arr
+      mapM_ (ifKeyWord handlerTg) arr
       endlessCycle

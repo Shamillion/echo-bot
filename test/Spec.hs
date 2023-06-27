@@ -4,15 +4,13 @@ import Control.Monad.Identity
     runIdentity,
   )
 import Control.Monad.State.Lazy
-  ( StateT,
-    evalStateT,
+  ( evalStateT,
     execStateT,
   )
 import qualified Data.Map.Lazy as Map
 import Environment
   ( Environment (..),
     NumRepeats (..),
-    UpdateID (..),
     Username (Username),
   )
 import Lib
@@ -26,7 +24,6 @@ import Telegram.Data
   ( Chat (..),
     Message (..),
     MessageDate (..),
-    WholeObject (..),
   )
 import Test.Hspec
   ( SpecWith,
@@ -65,7 +62,7 @@ handlerForTestIfKeyWord =
       sendKeyboardH = \_ -> pure "keyboard",
       sendCommentH = \_ _ -> pure "comment",
       sendRepeatsH = \_ -> pure "sendRepeats",
-      wordIsRepeatH = \_ _ _ _ -> pure $ Report "/repeat",
+      wordIsRepeatH = \_ _ _ -> pure $ Report "/repeat",
       getDataH = pure Nothing
     }
 
@@ -73,11 +70,8 @@ handlerForTestIfKeyWord =
 handlerForTestWordIsRepeat :: WorkHandle Identity String String
 handlerForTestWordIsRepeat =
   handlerForTestIfKeyWord
-    { wordIsRepeatH = \_ _ _ _ -> pure $ Report "empty array"
+    { wordIsRepeatH = \_ _ _ -> pure $ Report "empty array"
     }
-
-nothing :: UpdateID -> StateT Environment Identity (Maybe WholeObject)
-nothing _ = pure Nothing
 
 messageDate :: String -> String -> MessageDate
 messageDate usr txt =
@@ -99,7 +93,7 @@ messageDate usr txt =
 testingFunctionIfKeyWord :: String -> Command
 testingFunctionIfKeyWord txt =
   runIdentity $
-    evalStateT (ifKeyWord handlerForTestIfKeyWord nothing $ messageDate "testUsr" txt) environmentT
+    evalStateT (ifKeyWord handlerForTestIfKeyWord $ messageDate "testUsr" txt) environmentT
 
 testingFunctionWordIsRepeat :: String -> String -> String -> Command
 testingFunctionWordIsRepeat usr1 usr2 txt =
@@ -107,7 +101,6 @@ testingFunctionWordIsRepeat usr1 usr2 txt =
     evalStateT
       ( wordIsRepeat
           handlerForTestWordIsRepeat
-          nothing
           (messageDate usr1 txt)
           [messageDate usr2 txt]
       )
@@ -121,7 +114,6 @@ testingFunctionWordIsRepeat' usr1 usr2 txt =
         execStateT
           ( wordIsRepeat
               handlerForTestWordIsRepeat
-              nothing
               (messageDate usr1 txt)
               [messageDate usr2 txt]
           )
@@ -133,7 +125,6 @@ testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
     evalStateT
       ( wordIsRepeat
           handlerForTestWordIsRepeat
-          nothing
           (messageDate usr1 txt)
           []
       )
