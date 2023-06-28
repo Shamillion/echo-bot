@@ -35,10 +35,12 @@ library
       Telegram.Data
       Telegram.Engine
       Telegram.Functions
+      Telegram.Handler
       Telegram.KeyboardData
       Vk.Data
       Vk.Engine
       Vk.Functions
+      Vk.Handler
       Vk.KeyboardData
   other-modules:
       Paths_echo_bot

@@ -1,17 +1,21 @@
 module Vk.Functions where
 
 import Config
-  ( Configuration (groupIdVK),
+  ( Configuration (apiVKVersion, groupIdVK),
+    myHost,
+    myToken,
   )
+import Connect (connectToServer)
 import Control.Monad.State.Lazy
   ( StateT,
     get,
     lift,
   )
+import Data.Aeson (eitherDecode)
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Functor.Identity (runIdentity)
 import Environment
-  ( Environment,
+  ( Environment (lastUpdate),
     UpdateID (..),
     configuration,
   )
@@ -20,13 +24,18 @@ import Logger.Data
   )
 import Logger.Functions (writingLine)
 import Network.HTTP.Simple
-  ( Response,
+  ( Request,
+    Response,
+    getResponseBody,
+    getResponseStatusCode,
     httpLBS,
+    parseRequest_,
   )
 import RequestBuilding
   ( createStringRequest,
     stringToUrl,
   )
+import System.Exit (die)
 import System.Random (Random (randomRIO))
 import Telegram.Data as TG
   ( Chat (..),
@@ -46,6 +55,9 @@ import Vk.Data
     ObjectVK (messageVK),
     Updates (updates_object),
     VkData (offset, updates),
+    VkError (error_code, error_msg),
+    VkKeyServerTs (key, server),
+    VkResponse (response),
   )
 
 -- Functions for converting VK's data to Telegrams's data.
@@ -140,3 +152,72 @@ attachment (x : xs) userId = case x of
               ",",
               attachment xs userId
             ]
+
+-- Function for receiving the first response from the VK server.
+getVkResponse :: StateT Environment IO VkResponse
+getVkResponse = do
+  conf <- configuration <$> get
+  resp <- connectToServer (getLongPollServerRequest conf) 0
+  let code = getResponseStatusCode resp
+  if code == 200
+    then do
+      let obj = eitherDecode $ getResponseBody resp
+      case obj of
+        Left _ -> do
+          let str = errorProcessing resp
+          writingLine ERROR str
+          lift $ die str
+        Right vkResponse -> pure vkResponse
+    else writingLine ERROR ("statusCode " ++ show code) >> getVkResponse
+  where
+    errorProcessing resp = do
+      let errObj = eitherDecode $ getResponseBody resp
+      case errObj of
+        Left err -> err
+        Right vkErr ->
+          mconcat
+            [ "Error code ",
+              show $ error_code vkErr,
+              ". ",
+              error_msg vkErr
+            ]
+
+-- Function for receiving data from the VK server.
+getDataVk :: StateT Environment IO (Maybe WholeObject)
+getDataVk = do
+  vkResponse <- getVkResponse
+  env <- get
+  let serverVk = server $ response vkResponse
+      keyVk = key $ response vkResponse
+      tsVk = show $ lastUpdate env
+  getAnswer serverVk keyVk tsVk
+  where
+    getAnswer serverVk keyVk tsVk = do
+      let req = parseRequest_ $ mconcat [serverVk, "?act=a_check&key=", keyVk, "&ts=", tsVk, "&wait=25"]
+      resp <- connectToServer req 0
+      writingLine DEBUG $ show req
+      let obj = eitherDecode $ getResponseBody resp
+      case obj of
+        Left err -> do
+          lift $ print $ getResponseBody resp
+          writingLine ERROR err
+          pure Nothing
+        Right vkData -> do
+          writingLine DEBUG $ show vkData
+          case updates vkData of
+            [] -> getAnswer serverVk keyVk $ offset vkData
+            _ -> pure <$> getWholeObjectFromVk vkData
+
+getLongPollServerRequest :: Configuration -> Request
+getLongPollServerRequest conf =
+  parseRequest_ $
+    mconcat
+      [ "https://",
+        myHost conf,
+        "/method/groups.getLongPollServer?group_id=",
+        show $ groupIdVK conf,
+        "&access_token=",
+        myToken conf,
+        "&v=",
+        apiVKVersion conf
+      ]

@@ -15,9 +15,7 @@ import Control.Monad.State.Lazy
     put,
     replicateM_,
   )
-import Data.Aeson
-  ( encode,
-  )
+import Data.Aeson (encode)
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
 import Environment
@@ -46,7 +44,6 @@ import Telegram.Data
     WholeObject (result),
     errorMessage,
   )
-import Telegram.Functions (getData)
 import Telegram.KeyboardData (createKeyboard)
 import Text.Read (readMaybe)
 import Vk.Functions (repeatMessageVk)
@@ -94,18 +91,6 @@ data WorkHandle m a b = WorkHandle
       StateT Environment m Command,
     getDataH :: StateT Environment m (Maybe WholeObject)
   }
-
--- Handle for work of echobot.
-handlerTg :: WorkHandle IO () (Response LC.ByteString)
-handlerTg =
-  WorkHandle
-    { writingLineH = writingLine,
-      sendKeyboardH = sendKeyboard,
-      sendCommentH = sendComment,
-      sendRepeatsH = sendRepeats,
-      wordIsRepeatH = wordIsRepeat,
-      getDataH = getData
-    }
 
 -- Keyword search and processing.
 ifKeyWord ::

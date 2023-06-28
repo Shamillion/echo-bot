@@ -12,23 +12,21 @@ import Environment
         userData
       ),
   )
-import Lib
-  ( handlerTg,
-    ifKeyWord,
-  )
+import Lib (ifKeyWord)
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
 import Telegram.Data
   ( MessageDate (update_id),
     WholeObject (result),
   )
-import Telegram.Functions (getData)
+import Telegram.Functions (getDataTg)
+import Telegram.Handler (handlerTg)
 
 -- Main program cycle for Telegram.
 endlessCycle :: StateT Environment IO ()
 endlessCycle = do
   env <- get
-  obj <- getData
+  obj <- getDataTg
   let conf = configuration env
   case obj of
     Nothing -> writingLine ERROR "Broken request!"
