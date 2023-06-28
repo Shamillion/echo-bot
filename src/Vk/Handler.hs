@@ -1,7 +1,12 @@
 module Vk.Handler where
 
 import qualified Data.ByteString.Lazy.Char8 as LC
-import Lib (WorkHandle (getDataH))
+import Lib
+  ( WorkHandle
+      ( addNumberH,
+        getDataH
+      ),
+  )
 import Network.HTTP.Simple (Response)
 import Telegram.Handler (handlerTg)
 import Vk.Functions (getDataVk)
@@ -10,5 +15,6 @@ import Vk.Functions (getDataVk)
 handlerVk :: WorkHandle IO () (Response LC.ByteString)
 handlerVk =
   handlerTg
-    { getDataH = getDataVk
+    { getDataH = getDataVk,
+      addNumberH = 0
     }

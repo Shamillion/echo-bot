@@ -21,5 +21,6 @@ handlerTg =
       sendCommentH = sendComment,
       sendRepeatsH = sendRepeats,
       wordIsRepeatH = wordIsRepeat,
-      getDataH = getDataTg
+      getDataH = getDataTg,
+      addNumberH = 1
     }

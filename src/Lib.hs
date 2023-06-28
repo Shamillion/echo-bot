@@ -89,7 +89,8 @@ data WorkHandle m a b = WorkHandle
       MessageDate ->
       [MessageDate] ->
       StateT Environment m Command,
-    getDataH :: StateT Environment m (Maybe WholeObject)
+    getDataH :: StateT Environment m (Maybe WholeObject),
+    addNumberH :: UpdateID
   }
 
 -- Keyword search and processing.
@@ -137,57 +138,48 @@ wordIsRepeat WorkHandle {..} obj [] = do
   wordIsRepeatH WorkHandle {..} obj newArr
 wordIsRepeat WorkHandle {..} obj (x : xs) = do
   env <- get
-  let conf = configuration env
-      newObj = x
-      newEnv = Environment (num + update_id newObj) (userData env) (configuration env)
+  let newObj = x
+      newEnv = Environment (addNumberH + update_id newObj) (userData env) (configuration env)
       usrNameText = username . chat . message $ obj
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
-      num = UpdateID $ if messenger conf == "TG" then 1 else 0
   numRepeats <- case textM (message newObj) >>= readMaybe of
     Just int -> pure int
     Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
-      ( if numRepeats `elem` [1 .. 5]
-          then
-            ( do
-                _ <-
-                  sendCommentH obj $
-                    "Done! Set up "
-                      ++ show numRepeats
-                      ++ " repeat(s)."
-                _ <-
-                  writingLineH INFO $
-                    "Set up "
-                      ++ show numRepeats
-                      ++ " repeat(s) to "
-                      ++ usrNameText
-                put $
-                  Environment
-                    (num + update_id newObj)
-                    ( Map.insert
-                        usrName
-                        (NumRepeats numRepeats)
-                        (userData env)
-                    )
-                    (configuration env)
-                pure $ Repeat numRepeats
-            )
-          else
-            ( do
-                _ <- sendRepeatsH newObj
-                put newEnv
-                pure $ Report "number out of range"
-            )
-      )
-    else
-      ( do
-          _ <- ifKeyWord WorkHandle {..} newObj
+      if numRepeats `elem` [1 .. 5]
+        then do
+          _ <-
+            sendCommentH obj $
+              "Done! Set up "
+                ++ show numRepeats
+                ++ " repeat(s)."
+          _ <-
+            writingLineH INFO $
+              "Set up "
+                ++ show numRepeats
+                ++ " repeat(s) to "
+                ++ usrNameText
+          put $
+            Environment
+              (addNumberH + update_id newObj)
+              ( Map.insert
+                  usrName
+                  (NumRepeats numRepeats)
+                  (userData env)
+              )
+              (configuration env)
+          pure $ Repeat numRepeats
+        else do
+          _ <- sendRepeatsH newObj
           put newEnv
-          wordIsRepeatH WorkHandle {..} obj xs
-      )
+          pure $ Report "number out of range"
+    else do
+      _ <- ifKeyWord WorkHandle {..} newObj
+      put newEnv
+      wordIsRepeatH WorkHandle {..} obj xs
 
 -- Generating random numbers for VK requests.
 randomId :: IO Int

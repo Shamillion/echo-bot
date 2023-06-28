@@ -63,7 +63,8 @@ handlerForTestIfKeyWord =
       sendCommentH = \_ _ -> pure "comment",
       sendRepeatsH = \_ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ -> pure $ Report "/repeat",
-      getDataH = pure Nothing
+      getDataH = pure Nothing,
+      addNumberH = 0
     }
 
 -- Handle for tests of echobot.
