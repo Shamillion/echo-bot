@@ -15,9 +15,7 @@ import Control.Monad.State.Lazy
     put,
     replicateM_,
   )
-import Data.Aeson
-  ( encode,
-  )
+import Data.Aeson (encode)
 import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
 import Environment
@@ -46,7 +44,6 @@ import Telegram.Data
     WholeObject (result),
     errorMessage,
   )
-import Telegram.Functions (getData)
 import Telegram.KeyboardData (createKeyboard)
 import Text.Read (readMaybe)
 import Vk.Functions (repeatMessageVk)
@@ -89,33 +86,20 @@ data WorkHandle m a b = WorkHandle
     sendRepeatsH :: MessageDate -> StateT Environment m a,
     wordIsRepeatH ::
       WorkHandle m a b ->
-      (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
       MessageDate ->
       [MessageDate] ->
       StateT Environment m Command,
-    getDataH :: StateT Environment m (Maybe WholeObject)
+    getDataH :: StateT Environment m (Maybe WholeObject),
+    addNumberH :: UpdateID
   }
-
--- Handle for work of echobot.
-handler :: WorkHandle IO () (Response LC.ByteString)
-handler =
-  WorkHandle
-    { writingLineH = writingLine,
-      sendKeyboardH = sendKeyboard,
-      sendCommentH = sendComment,
-      sendRepeatsH = sendRepeats,
-      wordIsRepeatH = wordIsRepeat,
-      getDataH = getData
-    }
 
 -- Keyword search and processing.
 ifKeyWord ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   StateT Environment m Command
-ifKeyWord WorkHandle {..} getDataVk obj = do
+ifKeyWord WorkHandle {..} obj = do
   env <- get
   let usrName = username $ chat $ message obj
       conf = configuration env
@@ -123,13 +107,11 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
     Just "/repeat" -> do
       _ <- writingLineH INFO $ "Received /repeat from " ++ usrName
       _ <- sendKeyboardH obj
-      fromServer <- case messenger conf of
-        "TG" -> getDataH
-        _ -> getDataVk . lastUpdate $ env
+      fromServer <- getDataH
       let arr = case result <$> fromServer of
             Just messageDateLs -> messageDateLs
             _ -> []
-      wordIsRepeatH WorkHandle {..} getDataVk obj arr
+      wordIsRepeatH WorkHandle {..} obj arr
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
@@ -143,76 +125,61 @@ ifKeyWord WorkHandle {..} getDataVk obj = do
 wordIsRepeat ::
   Monad m =>
   WorkHandle m a b ->
-  (UpdateID -> StateT Environment m (Maybe WholeObject)) ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
-wordIsRepeat WorkHandle {..} getDataVk obj [] = do
-  -- getDataVk needed to get updates from VK.
-  env <- get
-  let conf = configuration env
-  fromServer <- case messenger conf of
-    "TG" -> getDataH
-    _ -> getDataVk $ lastUpdate env
+wordIsRepeat WorkHandle {..} obj [] = do
+  fromServer <- getDataH
   newArr <- case result <$> fromServer of
     Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  wordIsRepeatH WorkHandle {..} getDataVk obj newArr
-wordIsRepeat WorkHandle {..} getDataVk obj (x : xs) = do
+  wordIsRepeatH WorkHandle {..} obj newArr
+wordIsRepeat WorkHandle {..} obj (x : xs) = do
   env <- get
-  let conf = configuration env
-      newObj = x
-      newEnv = Environment (num + update_id newObj) (userData env) (configuration env)
+  let newObj = x
+      newEnv = Environment (addNumberH + update_id newObj) (userData env) (configuration env)
       usrNameText = username . chat . message $ obj
       usrName = Username usrNameText
       newUsrName = Username . username . chat . message $ newObj
-      num = UpdateID $ if messenger conf == "TG" then 1 else 0
   numRepeats <- case textM (message newObj) >>= readMaybe of
     Just int -> pure int
     Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
     then --  who requested a change in the number of repetitions.
 
-      ( if numRepeats `elem` [1 .. 5]
-          then
-            ( do
-                _ <-
-                  sendCommentH obj $
-                    "Done! Set up "
-                      ++ show numRepeats
-                      ++ " repeat(s)."
-                _ <-
-                  writingLineH INFO $
-                    "Set up "
-                      ++ show numRepeats
-                      ++ " repeat(s) to "
-                      ++ usrNameText
-                put $
-                  Environment
-                    (num + update_id newObj)
-                    ( Map.insert
-                        usrName
-                        (NumRepeats numRepeats)
-                        (userData env)
-                    )
-                    (configuration env)
-                pure $ Repeat numRepeats
-            )
-          else
-            ( do
-                _ <- sendRepeatsH newObj
-                put newEnv
-                pure $ Report "number out of range"
-            )
-      )
-    else
-      ( do
-          _ <- ifKeyWord WorkHandle {..} getDataVk newObj
+      if numRepeats `elem` [1 .. 5]
+        then do
+          _ <-
+            sendCommentH obj $
+              "Done! Set up "
+                ++ show numRepeats
+                ++ " repeat(s)."
+          _ <-
+            writingLineH INFO $
+              "Set up "
+                ++ show numRepeats
+                ++ " repeat(s) to "
+                ++ usrNameText
+          put $
+            Environment
+              (addNumberH + update_id newObj)
+              ( Map.insert
+                  usrName
+                  (NumRepeats numRepeats)
+                  (userData env)
+              )
+              (configuration env)
+          pure $ Repeat numRepeats
+        else do
+          _ <- sendRepeatsH newObj
           put newEnv
-          wordIsRepeatH WorkHandle {..} getDataVk obj xs
-      )
+          pure $ Report "number out of range"
+    else do
+      _ <- ifKeyWord WorkHandle {..} newObj
+      put newEnv
+      wordIsRepeatH WorkHandle {..} obj xs
 
 -- Generating random numbers for VK requests.
 randomId :: IO Int

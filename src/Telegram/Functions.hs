@@ -40,8 +40,8 @@ createStringGetUpdates (UpdateID num) =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 -- Function for getting data from Telegram's server.
-getData :: StateT Environment IO (Maybe WholeObject)
-getData = do
+getDataTg :: StateT Environment IO (Maybe WholeObject)
+getDataTg = do
   env <- get
   let str = createStringGetUpdates . lastUpdate $ env
       conf = configuration env
@@ -57,7 +57,7 @@ getData = do
           case result <$> obj of
             Just [] -> do
               put $ Environment 1 (userData env) (configuration env)
-              getData
+              getDataTg
             _ -> do
               pure obj
       )
@@ -69,7 +69,7 @@ getData = do
 --  (Excludes processing of messages sent before the program is started).
 firstUpdateIDSession :: StateT Environment IO ()
 firstUpdateIDSession = do
-  obj <- getData
+  obj <- getDataTg
   env <- get
   case obj of
     Nothing -> pure ()
