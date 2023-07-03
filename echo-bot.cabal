@@ -27,12 +27,12 @@ library
   exposed-modules:
       Config
       Connect
+      Data
       Environment
       Lib
       Logger.Data
       Logger.Functions
       RequestBuilding
-      Telegram.Data
       Telegram.Engine
       Telegram.Functions
       Telegram.Handler

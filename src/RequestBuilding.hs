@@ -22,7 +22,7 @@ import Network.HTTP.Simple
   ( Request,
     parseRequest_,
   )
-import Telegram.Data
+import Data
   ( Chat (username),
     Message (chat),
     MessageDate (message),
@@ -47,24 +47,23 @@ createStringRequest conf str = parseRequest_ $
           apiVKVersion conf
         ]
 
-getNumRepeats :: MessageDate -> Environment -> IO NumRepeats
-getNumRepeats obj env = do
-  pure $ case Map.lookup usrName $ userData env of
+getNumRepeats :: MessageDate -> Environment -> NumRepeats
+getNumRepeats obj env =
+  case Map.lookup usrName $ userData env of
     Nothing -> NumRepeats . defaultRepeats . configuration $ env
     Just num -> num
   where
     usrName = Username . username $ chat $ message obj
 
-createQuestion :: MessageDate -> Environment -> IO String
+createQuestion :: MessageDate -> Environment -> String
 createQuestion obj env = do
-  num <- getNumRepeats obj env
-  pure $
-    mconcat
-      [ "Currently set to ",
-        show num,
-        " repetitions.\n",
-        repeatMess . configuration $ env
-      ]
+  let num = getNumRepeats obj env
+  mconcat
+    [ "Currently set to ",
+      show num,
+      " repetitions.\n",
+      repeatMess . configuration $ env
+    ]
 
 stringToUrl :: String -> String
 stringToUrl = Prelude.foldl encodingChar ""

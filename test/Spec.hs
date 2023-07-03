@@ -7,6 +7,11 @@ import Control.Monad.State.Lazy
   ( evalStateT,
     execStateT,
   )
+import Data
+  ( Chat (..),
+    Message (..),
+    MessageDate (..),
+  )
 import qualified Data.Map.Lazy as Map
 import Environment
   ( Environment (..),
@@ -20,11 +25,6 @@ import Lib
     wordIsRepeat,
   )
 import Logger.Data (Priority (ERROR))
-import Telegram.Data
-  ( Chat (..),
-    Message (..),
-    MessageDate (..),
-  )
 import Test.Hspec
   ( SpecWith,
     describe,
@@ -59,12 +59,15 @@ handlerForTestIfKeyWord :: WorkHandle Identity String String
 handlerForTestIfKeyWord =
   WorkHandle
     { writingLineH = \_ _ -> pure "writingLine",
-      sendKeyboardH = \_ -> pure "keyboard",
-      sendCommentH = \_ _ -> pure "comment",
-      sendRepeatsH = \_ -> pure "sendRepeats",
+      sendKeyboardH = \_ _ -> pure "keyboard",
+      sendCommentH = \_ _ _ -> pure "comment",
+      sendRepeatsH = \_ _ -> pure "sendRepeats",
       wordIsRepeatH = \_ _ _ -> pure $ Report "/repeat",
       getDataH = pure Nothing,
-      addNumberH = 0
+      addNumberH = 0,
+      stringForCreateKeyboardH = \_ _ -> "stringForCreateKeyboard",
+      stringCommentH = \_ _ -> "stringComment",
+      repeatMessageH = \_ -> pure "repeatMessage"
     }
 
 -- Handle for tests of echobot.

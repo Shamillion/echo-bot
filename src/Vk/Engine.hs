@@ -5,6 +5,10 @@ import Control.Monad.State.Lazy
     get,
     put,
   )
+import Data
+  ( MessageDate (..),
+    WholeObject (..),
+  )
 import Environment
   ( Environment (..),
     UpdateID (UpdateID),
@@ -12,10 +16,6 @@ import Environment
 import Lib (ifKeyWord)
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
-import Telegram.Data as TG
-  ( MessageDate (..),
-    WholeObject (..),
-  )
 import Text.Read (readEither)
 import Vk.Data
   ( VkKeyServerTs (..),
