@@ -10,7 +10,7 @@ import Lib
   )
 import Logger.Functions (writingLine)
 import Network.HTTP.Simple (Response)
-import Telegram.Functions (getDataTg)
+import Telegram.Functions (getDataTg, repeatMessageTg, stringComment, stringForCreateKeyboard)
 
 -- Handle for work of Telegram's echobot.
 handlerTg :: WorkHandle IO () (Response LC.ByteString)
@@ -22,5 +22,8 @@ handlerTg =
       sendRepeatsH = sendRepeats,
       wordIsRepeatH = wordIsRepeat,
       getDataH = getDataTg,
-      addNumberH = 1
+      addNumberH = 1,
+      stringForCreateKeyboardH = stringForCreateKeyboard,
+      stringCommentH = stringComment,
+      repeatMessageH = repeatMessageTg
     }

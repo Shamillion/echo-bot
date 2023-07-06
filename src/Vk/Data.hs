@@ -3,13 +3,13 @@
 
 module Vk.Data where
 
+import Data (Media)
 import Data.Aeson
   ( FromJSON (parseJSON),
     Value (Object),
     (.:),
   )
 import GHC.Generics (Generic)
-import Telegram.Data as TG (Media)
 
 -- Data types for VK answer on getLongPollServer request.
 data VkKeyServerTs = VkKeyServerTs

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 
-module Telegram.Data where
+module Data where
 
 import Control.Applicative (Alternative ((<|>)))
 import Data.Aeson
@@ -18,7 +18,7 @@ import Environment
   )
 import GHC.Generics (Generic)
 
--- Data types for the Telegram answer.
+-- Data types for the answer.
 data Chat = Chat
   { chat_id :: Int,
     username :: String

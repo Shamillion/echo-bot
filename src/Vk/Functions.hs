@@ -11,7 +11,14 @@ import Control.Monad.State.Lazy
     get,
     lift,
   )
-import Data.Aeson (eitherDecode)
+import Data
+  ( Chat (..),
+    Media (..),
+    Message (..),
+    MessageDate (..),
+    WholeObject (..),
+  )
+import Data.Aeson (eitherDecode, encode)
 import qualified Data.ByteString.Lazy.Char8 as LC
 import Data.Functor.Identity (runIdentity)
 import Environment
@@ -37,13 +44,6 @@ import RequestBuilding
   )
 import System.Exit (die)
 import System.Random (Random (randomRIO))
-import Telegram.Data as TG
-  ( Chat (..),
-    Media (..),
-    Message (..),
-    MessageDate (..),
-    WholeObject (..),
-  )
 import Text.Read (readEither)
 import Vk.Data
   ( MessageVK
@@ -59,8 +59,9 @@ import Vk.Data
     VkKeyServerTs (key, server),
     VkResponse (response),
   )
+import Vk.KeyboardData (keyboardVk)
 
--- Functions for converting VK's data to Telegrams's data.
+-- Functions for converting VK's data to common data.
 getWholeObjectFromVk :: VkData -> StateT Environment IO WholeObject
 getWholeObjectFromVk obj = do
   conf <- configuration <$> get
@@ -79,7 +80,7 @@ getMessageDateFromVk :: Configuration -> UpdateID -> Updates -> MessageDate
 getMessageDateFromVk conf num obj =
   MessageDate
     { update_id = num,
-      TG.message = getMessageFromVk conf obj
+      message = getMessageFromVk conf obj
     }
 
 getMessageFromVk :: Configuration -> Updates -> Message
@@ -88,7 +89,7 @@ getMessageFromVk conf obj =
     { message_id = messageVK_id $ messageVK $ updates_object obj,
       chat = getChatFromVk conf obj,
       textM = Just $ messageVK_text $ messageVK $ updates_object obj,
-      TG.attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
+      attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
     }
 
 getChatFromVk :: Configuration -> Updates -> Chat
@@ -126,6 +127,26 @@ repeatMessageVk obj = do
             ]
   writingLine DEBUG $ show string
   httpLBS string
+
+stringForCreateKeyboard :: MessageDate -> String -> String
+stringForCreateKeyboard obj question =
+  mconcat
+    [ username $ chat $ message obj,
+      "&random_id=0",
+      "&message=",
+      stringToUrl question,
+      "&keyboard=",
+      stringToUrl $ LC.unpack $ encode keyboardVk
+    ]
+
+stringComment :: MessageDate -> String -> String
+stringComment obj str =
+  mconcat
+    [ username $ chat $ message obj,
+      "&random_id=0",
+      "&message=",
+      stringToUrl str
+    ]
 
 -- Processing of attachments for VK.
 attachment :: [Media] -> String -> String
