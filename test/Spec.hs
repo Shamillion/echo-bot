@@ -3,10 +3,7 @@ import Control.Monad.Identity
   ( Identity,
     runIdentity,
   )
-import Control.Monad.State.Lazy
-  ( evalStateT,
-    execStateT,
-  )
+import Control.Monad.State.Lazy (evalStateT)
 import Data
   ( Chat (..),
     Message (..),
@@ -16,7 +13,6 @@ import qualified Data.Map.Lazy as Map
 import Environment
   ( Environment (..),
     NumRepeats (..),
-    Username (Username),
   )
 import Lib
   ( Command (..),
@@ -55,26 +51,17 @@ testConfig =
     }
 
 -- Handle for tests of echobot.
-handlerForTestIfKeyWord :: WorkHandle Identity String String
-handlerForTestIfKeyWord =
+handlerForTest :: WorkHandle Identity String String
+handlerForTest =
   WorkHandle
     { writingLineH = \_ _ -> pure "writingLine",
-      sendKeyboardH = \_ _ -> pure "keyboard",
-      sendCommentH = \_ _ _ -> pure "comment",
-      sendRepeatsH = \_ _ -> pure "sendRepeats",
-      wordIsRepeatH = \_ _ _ -> pure $ Report "/repeat",
       getDataH = pure Nothing,
       addNumberH = 0,
       stringForCreateKeyboardH = \_ _ -> "stringForCreateKeyboard",
       stringCommentH = \_ _ -> "stringComment",
-      repeatMessageH = \_ -> pure "repeatMessage"
-    }
-
--- Handle for tests of echobot.
-handlerForTestWordIsRepeat :: WorkHandle Identity String String
-handlerForTestWordIsRepeat =
-  handlerForTestIfKeyWord
-    { wordIsRepeatH = \_ _ _ -> pure $ Report "empty array"
+      repeatMessageH = \_ -> pure "repeatMessage",
+      sendHttpReqH = \_ -> pure "sendHttpReq",
+      repeatActionH = \n _ -> pure $ show n
     }
 
 messageDate :: String -> String -> MessageDate
@@ -97,38 +84,25 @@ messageDate usr txt =
 testingFunctionIfKeyWord :: String -> Command
 testingFunctionIfKeyWord txt =
   runIdentity $
-    evalStateT (ifKeyWord handlerForTestIfKeyWord $ messageDate "testUsr" txt) environmentT
+    evalStateT (ifKeyWord handlerForTest $ messageDate "testUsr" txt) environmentT
 
 testingFunctionWordIsRepeat :: String -> String -> String -> Command
 testingFunctionWordIsRepeat usr1 usr2 txt =
   runIdentity $
     evalStateT
       ( wordIsRepeat
-          handlerForTestWordIsRepeat
+          handlerForTest
           (messageDate usr1 txt)
           [messageDate usr2 txt]
       )
       environmentT
-
-testingFunctionWordIsRepeat' :: String -> String -> String -> Maybe NumRepeats
-testingFunctionWordIsRepeat' usr1 usr2 txt =
-  Map.lookup (Username usr1) $
-    userData $
-      runIdentity $
-        execStateT
-          ( wordIsRepeat
-              handlerForTestWordIsRepeat
-              (messageDate usr1 txt)
-              [messageDate usr2 txt]
-          )
-          environmentT
 
 testingFunctionWordIsRepeatWithEmptyArr :: String -> String -> Command
 testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
   runIdentity $
     evalStateT
       ( wordIsRepeat
-          handlerForTestWordIsRepeat
+          handlerForTest
           (messageDate usr1 txt)
           []
       )
@@ -140,7 +114,7 @@ testsFunctionIfKeyWord = do
     testingFunctionIfKeyWord "/help" `shouldBe` Help
 
   it "catch the /repeat" $
-    testingFunctionIfKeyWord "/repeat" `shouldBe` Report "/repeat"
+    testingFunctionIfKeyWord "/repeat" `shouldBe` Report "Repeat"
 
   it "catch the others" $
     verbose $ \x xs -> testingFunctionIfKeyWord (x : xs) == Report "not a keyword"
@@ -152,17 +126,13 @@ testsFunctionWordIsRepeat = do
     testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` Repeat 3
     testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` Repeat 5
 
-    testingFunctionWordIsRepeat' "Tony" "Tony" "1" `shouldBe` Just (NumRepeats 1)
-    testingFunctionWordIsRepeat' "Tony" "Tony" "3" `shouldBe` Just (NumRepeats 3)
-    testingFunctionWordIsRepeat' "Tony" "Tony" "5" `shouldBe` Just (NumRepeats 5)
-
   it "the number is not from 1 to 5" $ do
     testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` Report "number out of range"
-    testingFunctionWordIsRepeat' "Tony" "Tony" "6" `shouldBe` Nothing
+    testingFunctionWordIsRepeat "Tony" "Tony" "0" `shouldBe` Report "number out of range"
 
   it "another user" $ do
-    testingFunctionWordIsRepeat' "Tony" "Many" "3" `shouldBe` Nothing
-    testingFunctionWordIsRepeat' "Tony" "Many" "6" `shouldBe` Nothing
+    testingFunctionWordIsRepeat "Tony" "Many" "3" `shouldBe` Report "another user"
+    testingFunctionWordIsRepeat "Tony" "Many" "6" `shouldBe` Report "another user"
 
   it "empty array" $
     testingFunctionWordIsRepeatWithEmptyArr "Tony" "3" `shouldBe` Report "empty array"

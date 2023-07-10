@@ -75,7 +75,8 @@ ifKeyWord h@WorkHandle {..} obj = do
       let arr = case result <$> fromServer of
             Just messageDateLs -> messageDateLs
             _ -> []
-      wordIsRepeat h obj arr
+      _ <- wordIsRepeat h obj arr
+      pure $ Report "Repeat"
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
@@ -99,7 +100,8 @@ wordIsRepeat h@WorkHandle {..} obj [] = do
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  wordIsRepeat h obj newArr
+  _ <- wordIsRepeat h obj newArr
+  pure $ Report "empty array"
 wordIsRepeat h@WorkHandle {..} obj (x : xs) = do
   env <- get
   let newObj = x
@@ -143,7 +145,8 @@ wordIsRepeat h@WorkHandle {..} obj (x : xs) = do
     else do
       _ <- ifKeyWord h newObj
       put newEnv
-      wordIsRepeat h obj xs
+      _ <- wordIsRepeat h obj xs
+      pure $ Report "another user"
 
 sendKeyboard :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m b
 sendKeyboard WorkHandle {..} obj = do
