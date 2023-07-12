@@ -84,13 +84,31 @@ The bot understands the following commands:
 
 ```haskell
 echo-bot                       -- the root folder of the project.
-  ├── app
-  │   └── Main.hs
-  ├── config.json              -- bot settings file.
-  ├── log.log                  -- file for bot logs.
-  ├── src
-  │   ├── Lib.hs               -- the main functions for the bot to work.
-  │   └── Vk.hs                -- functions for working with Vkontakte.
-  └── test
-      └── Spec.hs              -- tests for bot.
+   ├── app
+   │   └── Main.hs
+   ├── config.json             -- bot settings file.
+   ├── log.log                 -- file for bot logs. 
+   ├── src
+   │   ├── Config.hs           -- functions for getting settings from a file.
+   │   ├── Connect.hs          -- function for connecting to the server.
+   │   ├── Data.hs             -- data types for the server response.
+   │   ├── Environment.hs      -- data types and function for environment.
+   │   ├── Lib.hs              -- the pure logic for the bot work.
+   │   ├── Logger              -- folder with modules for the logger.
+   │   │   ├── Data.hs
+   │   │   └── Functions.hs
+   │   ├── RequestBuilding.hs  -- functions for creating a request to the server.
+   │   ├── Telegram            -- folder with modules for the Telegram.
+   │   │   ├── Engine.hs       -- main program cycle for Telegram.
+   │   │   ├── Functions.hs    -- functions for work of Telegram's echobot.
+   │   │   ├── Handler.hs      -- handle for work of Telegram's echobot.
+   │   │   └── KeyboardData.hs -- creating keyboard for Telegram.
+   │   └── Vk                  -- folder with modules for the Vkontakte.
+   │       ├── Data.hs         -- data types for the response from the Vkontakte server.
+   │       ├── Engine.hs       -- main program cycle for Vkontakte.
+   │       ├── Functions.hs    -- functions for work of Vkontakte's echobot.  
+   │       ├── Handler.hs      -- Handle for work of Vkontakte's echobot.
+   │       └── KeyboardData.hs -- creating keyboard for Vkontakte.
+   └── test
+      └── Spec.hs              -- tests for bot.
 ```
