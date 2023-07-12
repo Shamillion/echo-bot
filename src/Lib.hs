@@ -11,7 +11,6 @@ import Control.Monad.State.Lazy
   ( StateT,
     get,
     put,
-    replicateM_,
   )
 import Data
   ( Chat (username),
@@ -20,7 +19,6 @@ import Data
     WholeObject (result),
     errorMessage,
   )
-import qualified Data.ByteString.Lazy.Char8 as LC
 import qualified Data.Map.Lazy as Map
 import Environment
   ( Environment (..),
@@ -29,11 +27,7 @@ import Environment
     Username (Username),
   )
 import Logger.Data (Priority (..))
-import Logger.Functions (writingLine)
-import Network.HTTP.Simple
-  ( Response,
-    httpLBS,
-  )
+import Network.HTTP.Simple (Request)
 import RequestBuilding
   ( createQuestion,
     createStringRequest,
@@ -42,11 +36,11 @@ import RequestBuilding
 import Text.Read (readMaybe)
 
 -- Sending repetitions of request.
-sendRepeats :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m ()
+sendRepeats :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m a
 sendRepeats WorkHandle {..} obj = do
   env <- get
   let NumRepeats num = getNumRepeats obj env -- Getting the number of repeats for a current user.                                --    a message.
-  replicateM_ num $ repeatMessageH obj -- Repeat the action num times.
+  repeatActionH num $ repeatMessageH obj -- Repeat the action num times.
 
 data Command = Repeat Int | Help | Report String
   deriving (Eq, Show)
@@ -54,19 +48,13 @@ data Command = Repeat Int | Help | Report String
 -- Handle Pattern
 data WorkHandle m a b = WorkHandle
   { writingLineH :: Priority -> String -> StateT Environment m a,
-    sendKeyboardH :: WorkHandle m a b -> MessageDate -> StateT Environment m b,
-    sendCommentH :: WorkHandle m a b -> MessageDate -> String -> StateT Environment m b,
-    sendRepeatsH :: WorkHandle m a b -> MessageDate -> StateT Environment m a,
-    wordIsRepeatH ::
-      WorkHandle m a b ->
-      MessageDate ->
-      [MessageDate] ->
-      StateT Environment m Command,
     getDataH :: StateT Environment m (Maybe WholeObject),
     addNumberH :: UpdateID,
     stringForCreateKeyboardH :: MessageDate -> String -> String,
     stringCommentH :: MessageDate -> String -> String,
-    repeatMessageH :: MessageDate -> StateT Environment m b
+    repeatMessageH :: MessageDate -> StateT Environment m b,
+    sendHttpReqH :: Request -> StateT Environment m b,
+    repeatActionH :: Int -> StateT Environment m b -> StateT Environment m a
   }
 
 -- Keyword search and processing.
@@ -75,26 +63,27 @@ ifKeyWord ::
   WorkHandle m a b ->
   MessageDate ->
   StateT Environment m Command
-ifKeyWord WorkHandle {..} obj = do
+ifKeyWord h@WorkHandle {..} obj = do
   env <- get
   let usrName = username $ chat $ message obj
       conf = configuration env
   case textM $ message obj of
     Just "/repeat" -> do
       _ <- writingLineH INFO $ "Received /repeat from " ++ usrName
-      _ <- sendKeyboardH WorkHandle {..} obj
+      _ <- sendKeyboard h obj
       fromServer <- getDataH
       let arr = case result <$> fromServer of
             Just messageDateLs -> messageDateLs
             _ -> []
-      wordIsRepeatH WorkHandle {..} obj arr
+      _ <- wordIsRepeat h obj arr
+      pure $ Report "Repeat"
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
-        sendCommentH WorkHandle {..} obj $ mconcat $ helpMess conf
+        sendComment h obj $ mconcat $ helpMess conf
       pure Help
     _ -> do
-      _ <- sendRepeatsH WorkHandle {..} obj
+      _ <- sendRepeats h obj
       pure $ Report "not a keyword"
 
 -- Changing the number of repetitions.
@@ -104,15 +93,16 @@ wordIsRepeat ::
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
-wordIsRepeat WorkHandle {..} obj [] = do
+wordIsRepeat h@WorkHandle {..} obj [] = do
   fromServer <- getDataH
   newArr <- case result <$> fromServer of
     Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  wordIsRepeatH WorkHandle {..} obj newArr
-wordIsRepeat WorkHandle {..} obj (x : xs) = do
+  _ <- wordIsRepeat h obj newArr
+  pure $ Report "empty array"
+wordIsRepeat h@WorkHandle {..} obj (x : xs) = do
   env <- get
   let newObj = x
       newEnv = Environment (addNumberH + update_id newObj) (userData env) (configuration env)
@@ -128,7 +118,7 @@ wordIsRepeat WorkHandle {..} obj (x : xs) = do
       if numRepeats `elem` [1 .. 5]
         then do
           _ <-
-            sendCommentH WorkHandle {..} obj $
+            sendComment h obj $
               "Done! Set up "
                 ++ show numRepeats
                 ++ " repeat(s)."
@@ -149,28 +139,29 @@ wordIsRepeat WorkHandle {..} obj (x : xs) = do
               (configuration env)
           pure $ Repeat numRepeats
         else do
-          _ <- sendRepeatsH WorkHandle {..} newObj
+          _ <- sendRepeats h newObj
           put newEnv
           pure $ Report "number out of range"
     else do
-      _ <- ifKeyWord WorkHandle {..} newObj
+      _ <- ifKeyWord h newObj
       put newEnv
-      wordIsRepeatH WorkHandle {..} obj xs
+      _ <- wordIsRepeat h obj xs
+      pure $ Report "another user"
 
-sendKeyboard :: WorkHandle m a b -> MessageDate -> StateT Environment IO (Response LC.ByteString)
+sendKeyboard :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m b
 sendKeyboard WorkHandle {..} obj = do
   env <- get
   let question = createQuestion obj env
       conf = configuration env
       string = stringForCreateKeyboardH obj question
       req = createStringRequest conf string
-  writingLine DEBUG $ show req
-  httpLBS req
+  _ <- writingLineH DEBUG $ show req
+  sendHttpReqH req
 
-sendComment :: WorkHandle m a b -> MessageDate -> String -> StateT Environment IO (Response LC.ByteString)
+sendComment :: Monad m => WorkHandle m a b -> MessageDate -> String -> StateT Environment m b
 sendComment WorkHandle {..} obj str = do
   conf <- configuration <$> get
   let string = stringCommentH obj str
       req = createStringRequest conf string
-  writingLine DEBUG $ show req
-  httpLBS req
+  _ <- writingLineH DEBUG $ show req
+  sendHttpReqH req
