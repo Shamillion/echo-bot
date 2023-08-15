@@ -17,7 +17,8 @@ To deploy the project, you need to perform the following steps:
    stack build
    ```
    command.
-4. Open the **config.json** file in the root folder of the project and replace the parameters for one or both connections with your parameters.
+4. Rename the **_config.json** file in the root folder of the project in **config.json**.  
+5. Open the **config.json** file and replace the parameters for one or both connections with your parameters.
     - "messenger" : "TG"                         - the messenger that you are going to use at the moment (TG or VK),
     - "hostTG"    : "api.telegram.org"           - telegram host issued when creating a bot in telegram,
     - "hostVK"    : "api.vk.com"                 - vkontakte host,
@@ -29,7 +30,7 @@ To deploy the project, you need to perform the following steps:
    
    NOTE! For the bot to work, it is necessary that the values of ALL parameters are filled in! 
    If you use only one connection, do not delete the parameter values of the other connection.
-5. Run the bot with the 
+6. Run the bot with the 
    ```haskell
    stack run
    ```
