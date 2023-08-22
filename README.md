@@ -17,7 +17,7 @@ To deploy the project, you need to perform the following steps:
    stack build
    ```
    command.
-4. Rename the **_config.json** file in the root folder of the project in **config.json**.  
+4. Make a copy of the **_config.json** file in the root folder of the project and rename this copy to **config.json**.  
 5. Open the **config.json** file and replace the parameters for one or both connections with your parameters.
     - "messenger" : "TG"                         - the messenger that you are going to use at the moment (TG or VK),
     - "hostTG"    : "api.telegram.org"           - telegram host issued when creating a bot in telegram,
@@ -67,12 +67,12 @@ The bot understands the following commands:
   "tokenVK"   : "23654???????:??????????"    -- Vkontakte group token,
   "groupIdVK" : 123456789              -- id of the Vkontakte group,
   "apiVKVersion" : "5.130",            -- the version of the api for Vkontakte (the bot has been tested with version 5.130),
-  "helpMess"  : [ "This is an echobot.\n",
-                  "It repeats your messages a certain number of times.\n",
-                  "The number of repetitions can be changed by entering", 
-                  " command /repeat."
-                ],                      -- the message displayed when the bot receives the "/help" command,
-  "repeatMess"     : "How many reps do you want to set?",    -- the message displayed when the bot receives the "/repeat" command,
+  "messageHelpCommand" : [ "This is an echobot.\n",
+                           "It repeats your messages a certain number of times.\n",
+                           "The number of repetitions can be changed by entering", 
+                           " command /repeat."
+                         ],                      -- the message displayed when the bot receives the "/help" command,
+  "messageRepeatCommand": "How many reps do you want to set?",    -- the message displayed when the bot receives the "/repeat" command,
   "defaultRepeats" : 2,                 -- default number of repetitions,
   "priorityLevel"  : "DEBUG",           -- logging level.
   "comment_priorityLevel" : "DEBUG || INFO || WARNING || ERROR",    -- possible logging levels.
@@ -87,7 +87,7 @@ The bot understands the following commands:
 echo-bot                       -- the root folder of the project.
    ├── app
    │   └── Main.hs
-   ├── config.json             -- bot settings file.
+   ├── _config.json            -- template of settings file for bot.
    ├── log.log                 -- file for bot logs. 
    ├── src
    │   ├── Config.hs           -- functions for getting settings from a file.

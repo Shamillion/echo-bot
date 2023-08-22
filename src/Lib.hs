@@ -4,7 +4,7 @@ module Lib where
 
 import Config
   ( Configuration
-      ( helpMess
+      ( messageHelpCommand
       ),
   )
 import Control.Monad.State.Lazy
@@ -16,7 +16,7 @@ import Data
   ( Chat (username),
     Message (chat, textM),
     MessageDate (..),
-    WholeObject (result),
+    DataFromServer (result),
     errorMessage,
   )
 import qualified Data.Map.Lazy as Map
@@ -48,7 +48,7 @@ data Command = Repeat Int | Help | Report String
 -- Handle Pattern
 data WorkHandle m a b = WorkHandle
   { writingLineH :: Priority -> String -> StateT Environment m a,
-    getDataH :: StateT Environment m (Maybe WholeObject),
+    getDataH :: StateT Environment m (Maybe DataFromServer),
     addNumberH :: UpdateID,
     stringForCreateKeyboardH :: MessageDate -> String -> String,
     stringCommentH :: MessageDate -> String -> String,
@@ -58,12 +58,12 @@ data WorkHandle m a b = WorkHandle
   }
 
 -- Keyword search and processing.
-ifKeyWord ::
+handleKeywords ::
   Monad m =>
   WorkHandle m a b ->
   MessageDate ->
   StateT Environment m Command
-ifKeyWord h@WorkHandle {..} obj = do
+handleKeywords h@WorkHandle {..} obj = do
   env <- get
   let usrName = username $ chat $ message obj
       conf = configuration env
@@ -75,34 +75,34 @@ ifKeyWord h@WorkHandle {..} obj = do
       let arr = case result <$> fromServer of
             Just messageDateLs -> messageDateLs
             _ -> []
-      _ <- wordIsRepeat h obj arr
+      _ <- handleRepeatCommand h obj arr
       pure $ Report "Repeat"
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
-        sendComment h obj $ mconcat $ helpMess conf
+        sendComment h obj $ mconcat $ messageHelpCommand conf
       pure Help
     _ -> do
       _ <- sendRepeats h obj
       pure $ Report "not a keyword"
 
 -- Changing the number of repetitions.
-wordIsRepeat ::
+handleRepeatCommand ::
   Monad m =>
   WorkHandle m a b ->
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
-wordIsRepeat h@WorkHandle {..} obj [] = do
+handleRepeatCommand h@WorkHandle {..} obj [] = do
   fromServer <- getDataH
   newArr <- case result <$> fromServer of
     Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  _ <- wordIsRepeat h obj newArr
+  _ <- handleRepeatCommand h obj newArr
   pure $ Report "empty array"
-wordIsRepeat h@WorkHandle {..} obj (x : xs) = do
+handleRepeatCommand h@WorkHandle {..} obj (x : xs) = do
   env <- get
   let newObj = x
       newEnv = Environment (addNumberH + update_id newObj) (userData env) (configuration env)
@@ -143,9 +143,9 @@ wordIsRepeat h@WorkHandle {..} obj (x : xs) = do
           put newEnv
           pure $ Report "number out of range"
     else do
-      _ <- ifKeyWord h newObj
+      _ <- handleKeywords h newObj
       put newEnv
-      _ <- wordIsRepeat h obj xs
+      _ <- handleRepeatCommand h obj xs
       pure $ Report "another user"
 
 sendKeyboard :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m b

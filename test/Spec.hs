@@ -17,8 +17,8 @@ import Environment
 import Lib
   ( Command (..),
     WorkHandle (..),
-    ifKeyWord,
-    wordIsRepeat,
+    handleKeywords,
+    handleRepeatCommand,
   )
 import Logger.Data (Priority (ERROR))
 import Test.Hspec
@@ -43,8 +43,8 @@ testConfig =
       tokenVK = "0",
       groupIdVK = 0,
       apiVKVersion = "0",
-      helpMess = ["help message"],
-      repeatMess = "repeat message",
+      messageHelpCommand = ["help message"],
+      messageRepeatCommand = "repeat message",
       defaultRepeats = 3,
       priorityLevel = ERROR,
       logOutput = "cons"
@@ -81,63 +81,63 @@ messageDate usr txt =
           }
     }
 
-testingFunctionIfKeyWord :: String -> Command
-testingFunctionIfKeyWord txt =
+testingFunctionHandleKeywords :: String -> Command
+testingFunctionHandleKeywords txt =
   runIdentity $
-    evalStateT (ifKeyWord handlerForTest $ messageDate "testUsr" txt) environmentT
+    evalStateT (handleKeywords handlerForTest $ messageDate "testUsr" txt) environmentT
 
-testingFunctionWordIsRepeat :: String -> String -> String -> Command
-testingFunctionWordIsRepeat usr1 usr2 txt =
+testingFunctionHandleRepeatCommand :: String -> String -> String -> Command
+testingFunctionHandleRepeatCommand usr1 usr2 txt =
   runIdentity $
     evalStateT
-      ( wordIsRepeat
+      ( handleRepeatCommand
           handlerForTest
           (messageDate usr1 txt)
           [messageDate usr2 txt]
       )
       environmentT
 
-testingFunctionWordIsRepeatWithEmptyArr :: String -> String -> Command
-testingFunctionWordIsRepeatWithEmptyArr usr1 txt =
+testingFunctionHandleRepeatCommandWithEmptyArr :: String -> String -> Command
+testingFunctionHandleRepeatCommandWithEmptyArr usr1 txt =
   runIdentity $
     evalStateT
-      ( wordIsRepeat
+      ( handleRepeatCommand
           handlerForTest
           (messageDate usr1 txt)
           []
       )
       environmentT
 
-testsFunctionIfKeyWord :: SpecWith ()
-testsFunctionIfKeyWord = do
+testsFunctionhandleKeywords :: SpecWith ()
+testsFunctionhandleKeywords = do
   it "catch the /help" $
-    testingFunctionIfKeyWord "/help" `shouldBe` Help
+    testingFunctionHandleKeywords "/help" `shouldBe` Help
 
   it "catch the /repeat" $
-    testingFunctionIfKeyWord "/repeat" `shouldBe` Report "Repeat"
+    testingFunctionHandleKeywords "/repeat" `shouldBe` Report "Repeat"
 
   it "catch the others" $
-    verbose $ \x xs -> testingFunctionIfKeyWord (x : xs) == Report "not a keyword"
+    verbose $ \x xs -> testingFunctionHandleKeywords (x : xs) == Report "not a keyword"
 
-testsFunctionWordIsRepeat :: SpecWith ()
-testsFunctionWordIsRepeat = do
+testsFunctionhandleRepeatCommand :: SpecWith ()
+testsFunctionhandleRepeatCommand = do
   it "catch the number from 1 to 5" $ do
-    testingFunctionWordIsRepeat "Tony" "Tony" "1" `shouldBe` Repeat 1
-    testingFunctionWordIsRepeat "Tony" "Tony" "3" `shouldBe` Repeat 3
-    testingFunctionWordIsRepeat "Tony" "Tony" "5" `shouldBe` Repeat 5
+    testingFunctionHandleRepeatCommand "Tony" "Tony" "1" `shouldBe` Repeat 1
+    testingFunctionHandleRepeatCommand "Tony" "Tony" "3" `shouldBe` Repeat 3
+    testingFunctionHandleRepeatCommand "Tony" "Tony" "5" `shouldBe` Repeat 5
 
   it "the number is not from 1 to 5" $ do
-    testingFunctionWordIsRepeat "Tony" "Tony" "6" `shouldBe` Report "number out of range"
-    testingFunctionWordIsRepeat "Tony" "Tony" "0" `shouldBe` Report "number out of range"
+    testingFunctionHandleRepeatCommand "Tony" "Tony" "6" `shouldBe` Report "number out of range"
+    testingFunctionHandleRepeatCommand "Tony" "Tony" "0" `shouldBe` Report "number out of range"
 
   it "another user" $ do
-    testingFunctionWordIsRepeat "Tony" "Many" "3" `shouldBe` Report "another user"
-    testingFunctionWordIsRepeat "Tony" "Many" "6" `shouldBe` Report "another user"
+    testingFunctionHandleRepeatCommand "Tony" "Many" "3" `shouldBe` Report "another user"
+    testingFunctionHandleRepeatCommand "Tony" "Many" "6" `shouldBe` Report "another user"
 
   it "empty array" $
-    testingFunctionWordIsRepeatWithEmptyArr "Tony" "3" `shouldBe` Report "empty array"
+    testingFunctionHandleRepeatCommandWithEmptyArr "Tony" "3" `shouldBe` Report "empty array"
 
 main :: IO ()
 main = hspec $ do
-  describe "Test function ifKeyWord" testsFunctionIfKeyWord
-  describe "Test function wordIsRepeat" testsFunctionWordIsRepeat
+  describe "Test function handleKeywords" testsFunctionhandleKeywords
+  describe "Test function handleRepeatCommand" testsFunctionhandleRepeatCommand
