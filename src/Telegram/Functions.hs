@@ -15,7 +15,7 @@ import Data
   ( Chat (chat_id),
     Message (chat),
     MessageDate (message, update_id),
-    WholeObject (result),
+    DataFromServer (result),
     chat,
     chat_id,
     message,
@@ -42,7 +42,7 @@ import Network.HTTP.Simple
     httpLBS,
     parseRequest_,
   )
-import RequestBuilding (createStringRequest, stringToUrl)
+import RequestBuilding (createStringRequest, convertStringToUrl)
 import Telegram.KeyboardData (createKeyboard)
 
 -- Update request string for Telegram.
@@ -51,7 +51,7 @@ createStringGetUpdates (UpdateID num) =
   mconcat ["/getUpdates?offset=", show num, "&timeout=1"]
 
 -- Function for getting data from Telegram's server.
-getDataTg :: StateT Environment IO (Maybe WholeObject)
+getDataTg :: StateT Environment IO (Maybe DataFromServer)
 getDataTg = do
   env <- get
   let str = createStringGetUpdates . lastUpdate $ env
@@ -101,9 +101,9 @@ stringForCreateKeyboard obj question =
     [ "/sendMessage?chat_id=",
       show $ chat_id $ chat $ message obj,
       "&text=",
-      stringToUrl question,
+      convertStringToUrl question,
       "&reply_markup=",
-      stringToUrl $ LC.unpack $ encode createKeyboard
+      convertStringToUrl $ LC.unpack $ encode createKeyboard
     ]
 
 stringComment :: MessageDate -> String -> String
@@ -112,7 +112,7 @@ stringComment obj str =
     [ "/sendMessage?chat_id=",
       show $ chat_id $ chat $ message obj,
       "&text=",
-      stringToUrl str
+      convertStringToUrl str
     ]
 
 repeatMessageTg :: MessageDate -> StateT Environment IO (Response LC.ByteString)

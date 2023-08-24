@@ -19,13 +19,13 @@ data ReplyKeyboardMarkup = ReplyKeyboardMarkup
   deriving (Show, Generic, ToJSON)
 
 -- Creating keyboard for TG.
-toKeyboardButton :: Int -> KeyboardButton
-toKeyboardButton num = KeyboardButton {text = show num}
+createKeyboardButton :: Int -> KeyboardButton
+createKeyboardButton num = KeyboardButton {text = show num}
 
 createKeyboard :: ReplyKeyboardMarkup
 createKeyboard =
   ReplyKeyboardMarkup
-    { keyboard = [map toKeyboardButton [1 .. 5]],
+    { keyboard = [map createKeyboardButton [1 .. 5]],
       resize_keyboard = True,
       one_time_keyboard = True
     }

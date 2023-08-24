@@ -7,7 +7,7 @@ import Control.Monad.State.Lazy
   )
 import Data
   ( MessageDate (update_id),
-    WholeObject (result),
+    DataFromServer (result),
   )
 import Environment
   ( Environment
@@ -16,15 +16,15 @@ import Environment
         userData
       ),
   )
-import Lib (ifKeyWord)
+import Lib (handleKeywords)
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
 import Telegram.Functions (getDataTg)
 import Telegram.Handler (handlerTg)
 
 -- Main program cycle for Telegram.
-endlessCycle :: StateT Environment IO ()
-endlessCycle = do
+botLoop :: StateT Environment IO ()
+botLoop = do
   env <- get
   obj <- getDataTg
   let conf = configuration env
@@ -37,5 +37,5 @@ endlessCycle = do
           update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
       put $ Environment (1 + update_id') (userData env) conf
       _ <- get
-      mapM_ (ifKeyWord handlerTg) arr
-      endlessCycle
+      mapM_ (handleKeywords handlerTg) arr
+      botLoop

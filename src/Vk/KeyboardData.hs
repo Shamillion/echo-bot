@@ -45,11 +45,11 @@ instance ToJSON KeyboardVk where
 buttonVk :: Int -> ButtonVk
 buttonVk num =
   ButtonVk
-    { action = toAction num
+    { action = createActionVk num
     }
 
-toAction :: Int -> ActionVk
-toAction num =
+createActionVk :: Int -> ActionVk
+createActionVk num =
   ActionVk
     { typeActionVk = "text",
       label = show num

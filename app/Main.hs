@@ -11,7 +11,7 @@ import Environment
   )
 import Logger.Data (Priority (INFO))
 import Logger.Functions (writingLine)
-import Telegram.Engine (endlessCycle)
+import Telegram.Engine (botLoop)
 import Telegram.Functions (firstUpdateIDSession)
 import Vk.Engine (botsLongPollAPI)
 
@@ -24,7 +24,7 @@ main = do
     "TG" -> do
       logString "Started Telegram echobot."
       newEnv <- execStateT firstUpdateIDSession env
-      evalStateT endlessCycle newEnv
+      evalStateT botLoop newEnv
     _ -> do
       logString "Started VK echobot."
       evalStateT botsLongPollAPI env

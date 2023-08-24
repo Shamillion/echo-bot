@@ -74,7 +74,7 @@ instance FromJSON MessageDate where
     pure $ MessageDate (UpdateID num) message
   parseJSON _ = mempty
 
-data WholeObject = WholeObject
+data DataFromServer = DataFromServer
   { ok :: Bool,
     result :: [MessageDate]
   }

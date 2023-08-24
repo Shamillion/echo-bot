@@ -25,8 +25,8 @@ data Configuration = Configuration
     tokenVK :: String,
     groupIdVK :: Int,
     apiVKVersion :: String,
-    helpMess :: [String],
-    repeatMess :: String,
+    messageHelpCommand :: [String],
+    messageRepeatCommand :: String,
     defaultRepeats :: Int,
     priorityLevel :: Priority,
     logOutput :: String

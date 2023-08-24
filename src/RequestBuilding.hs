@@ -6,7 +6,7 @@ import Config
         defaultRepeats,
         groupIdVK,
         messenger,
-        repeatMess
+        messageRepeatCommand
       ),
     messengerHost,
     myHost,
@@ -62,11 +62,11 @@ createQuestion obj env = do
     [ "Currently set to ",
       show num,
       " repetitions.\n",
-      repeatMess . configuration $ env
+      messageRepeatCommand . configuration $ env
     ]
 
-stringToUrl :: String -> String
-stringToUrl = Prelude.foldl encodingChar ""
+convertStringToUrl :: String -> String
+convertStringToUrl = Prelude.foldl encodingChar ""
   where
     encodingChar acc chr =
       acc ++ case chr of

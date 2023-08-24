@@ -16,7 +16,7 @@ import Data
     Media (..),
     Message (..),
     MessageDate (..),
-    WholeObject (..),
+    DataFromServer (..),
   )
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.ByteString.Lazy.Char8 as LC
@@ -40,7 +40,7 @@ import Network.HTTP.Simple
   )
 import RequestBuilding
   ( createStringRequest,
-    stringToUrl,
+    convertStringToUrl,
   )
 import System.Exit (die)
 import System.Random (Random (randomRIO))
@@ -62,38 +62,38 @@ import Vk.Data
 import Vk.KeyboardData (keyboardVk)
 
 -- Functions for converting VK's data to common data.
-getWholeObjectFromVk :: VkData -> StateT Environment IO WholeObject
-getWholeObjectFromVk obj = do
+convertVkToDataFromServer :: VkData -> StateT Environment IO DataFromServer
+convertVkToDataFromServer obj = do
   conf <- configuration <$> get
   num <-
     UpdateID <$> case readEither . offset $ obj of
       Right int -> pure int
       Left err -> writingLine ERROR err >> pure 0
-  let ls = map (getMessageDateFromVk conf num) $ updates obj
+  let ls = map (convertVkToMessageDate conf num) $ updates obj
   pure $
-    WholeObject
+    DataFromServer
       { ok = True,
         result = ls
       }
 
-getMessageDateFromVk :: Configuration -> UpdateID -> Updates -> MessageDate
-getMessageDateFromVk conf num obj =
+convertVkToMessageDate :: Configuration -> UpdateID -> Updates -> MessageDate
+convertVkToMessageDate conf num obj =
   MessageDate
     { update_id = num,
-      message = getMessageFromVk conf obj
+      message = convertVkToMessage conf obj
     }
 
-getMessageFromVk :: Configuration -> Updates -> Message
-getMessageFromVk conf obj =
+convertVkToMessage :: Configuration -> Updates -> Message
+convertVkToMessage conf obj =
   Message
     { message_id = messageVK_id $ messageVK $ updates_object obj,
-      chat = getChatFromVk conf obj,
+      chat = convertVkToChat conf obj,
       textM = Just $ messageVK_text $ messageVK $ updates_object obj,
       attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
     }
 
-getChatFromVk :: Configuration -> Updates -> Chat
-getChatFromVk conf obj =
+convertVkToChat :: Configuration -> Updates -> Chat
+convertVkToChat conf obj =
   Chat
     { chat_id = groupIdVK conf,
       username = show $ from_id $ messageVK $ updates_object obj
@@ -123,7 +123,7 @@ repeatMessageVk obj = do
               "&random_id=",
               show randInt,
               "&message=",
-              stringToUrl $ str ++ add ++ attachment arr userId
+              convertStringToUrl $ str ++ add ++ processAttachment arr userId
             ]
   writingLine DEBUG $ show string
   httpLBS string
@@ -134,9 +134,9 @@ stringForCreateKeyboard obj question =
     [ username $ chat $ message obj,
       "&random_id=0",
       "&message=",
-      stringToUrl question,
+      convertStringToUrl question,
       "&keyboard=",
-      stringToUrl $ LC.unpack $ encode keyboardVk
+      convertStringToUrl $ LC.unpack $ encode keyboardVk
     ]
 
 stringComment :: MessageDate -> String -> String
@@ -145,22 +145,22 @@ stringComment obj str =
     [ username $ chat $ message obj,
       "&random_id=0",
       "&message=",
-      stringToUrl str
+      convertStringToUrl str
     ]
 
 -- Processing of attachments for VK.
-attachment :: [Media] -> String -> String
-attachment [] _ = ""
-attachment (x : xs) userId = case x of
-  Sticker _ stickerId -> "&sticker_id=" ++ show stickerId ++ attachment xs userId
-  AudioMessage _ lnk -> lnk ++ attachment xs userId
+processAttachment :: [Media] -> String -> String
+processAttachment [] _ = ""
+processAttachment (x : xs) userId = case x of
+  Sticker _ stickerId -> "&sticker_id=" ++ show stickerId ++ processAttachment xs userId
+  AudioMessage _ lnk -> lnk ++ processAttachment xs userId
   Others typeMedia mediaId ownerId urlMedia accessKey -> runIdentity $ do
     let lnk = case urlMedia of
           Just txt -> txt
           _ -> ""
     pure $
       if typeMedia == "doc" && userId == show ownerId
-        then lnk ++ "," ++ attachment xs userId
+        then lnk ++ "," ++ processAttachment xs userId
         else
           mconcat
             [ typeMedia,
@@ -171,7 +171,7 @@ attachment (x : xs) userId = case x of
                 Just str -> "_" ++ str
                 _ -> "",
               ",",
-              attachment xs userId
+              processAttachment xs userId
             ]
 
 -- Function for receiving the first response from the VK server.
@@ -204,7 +204,7 @@ getVkResponse = do
             ]
 
 -- Function for receiving data from the VK server.
-getDataVk :: StateT Environment IO (Maybe WholeObject)
+getDataVk :: StateT Environment IO (Maybe DataFromServer)
 getDataVk = do
   vkResponse <- getVkResponse
   env <- get
@@ -227,7 +227,7 @@ getDataVk = do
           writingLine DEBUG $ show vkData
           case updates vkData of
             [] -> getAnswer serverVk keyVk $ offset vkData
-            _ -> pure <$> getWholeObjectFromVk vkData
+            _ -> pure <$> convertVkToDataFromServer vkData
 
 getLongPollServerRequest :: Configuration -> Request
 getLongPollServerRequest conf =

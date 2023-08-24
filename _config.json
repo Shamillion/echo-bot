@@ -7,12 +7,12 @@
   "tokenVK"   : "23654???????:??????????",    
   "groupIdVK" : 123456789,
   "apiVKVersion" : "5.130",
-  "helpMess"  : [ "This is an echobot.\n",
-                  "It repeats your messages a certain number of times.\n",
-                  "The number of repetitions can be changed by entering", 
-                  " command /repeat."
-                ],
-  "repeatMess"     : "How many reps do you want to set?",
+  "messageHelpCommand"  : [ "This is an echobot.\n",
+                            "It repeats your messages a certain number of times.\n",
+                            "The number of repetitions can be changed by entering", 
+                            " command /repeat."
+                          ],
+  "messageRepeatCommand" : "How many reps do you want to set?",
   "defaultRepeats" : 2,
   "priorityLevel"  : "DEBUG",
   "comment_priorityLevel" : "DEBUG || INFO || WARNING || ERROR",

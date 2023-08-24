@@ -7,13 +7,13 @@ import Control.Monad.State.Lazy
   )
 import Data
   ( MessageDate (..),
-    WholeObject (..),
+    DataFromServer (..),
   )
 import Environment
   ( Environment (..),
     UpdateID (UpdateID),
   )
-import Lib (ifKeyWord)
+import Lib (handleKeywords)
 import Logger.Data (Priority (ERROR))
 import Logger.Functions (writingLine)
 import Text.Read (readEither)
@@ -48,5 +48,5 @@ botsLongPollAPI = do
           let arr = result wholeObj
               update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
           put $ Environment update_id' (userData env) (configuration env)
-          mapM_ (ifKeyWord handlerVk) arr
+          mapM_ (handleKeywords handlerVk) arr
           botsLongPollAPI
