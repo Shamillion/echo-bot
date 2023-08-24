@@ -63,58 +63,58 @@ import Vk.KeyboardData (keyboardVk)
 
 -- Functions for converting VK's data to common data.
 convertVkToDataFromServer :: VkData -> StateT Environment IO DataFromServer
-convertVkToDataFromServer obj = do
+convertVkToDataFromServer vkData = do
   conf <- configuration <$> get
-  num <-
-    UpdateID <$> case readEither . offset $ obj of
+  updateID <-
+    UpdateID <$> case readEither . offset $ vkData of
       Right int -> pure int
       Left err -> writingLine ERROR err >> pure 0
-  let ls = map (convertVkToMessageDate conf num) $ updates obj
+  let messageDateLs = map (convertVkToMessageDate conf updateID) $ updates vkData
   pure $
     DataFromServer
       { ok = True,
-        result = ls
+        result = messageDateLs
       }
 
 convertVkToMessageDate :: Configuration -> UpdateID -> Updates -> MessageDate
-convertVkToMessageDate conf num obj =
+convertVkToMessageDate conf updateID updates =
   MessageDate
-    { update_id = num,
-      message = convertVkToMessage conf obj
+    { update_id = updateID,
+      message = convertVkToMessage conf updates
     }
 
 convertVkToMessage :: Configuration -> Updates -> Message
-convertVkToMessage conf obj =
+convertVkToMessage conf updates =
   Message
-    { message_id = messageVK_id $ messageVK $ updates_object obj,
-      chat = convertVkToChat conf obj,
-      textM = Just $ messageVK_text $ messageVK $ updates_object obj,
-      attachments = Just $ messageVK_attachments $ messageVK $ updates_object obj
+    { message_id = messageVK_id $ messageVK $ updates_object updates,
+      chat = convertVkToChat conf updates,
+      textM = Just $ messageVK_text $ messageVK $ updates_object updates,
+      attachments = Just $ messageVK_attachments $ messageVK $ updates_object updates
     }
 
 convertVkToChat :: Configuration -> Updates -> Chat
-convertVkToChat conf obj =
+convertVkToChat conf updates =
   Chat
     { chat_id = groupIdVK conf,
-      username = show $ from_id $ messageVK $ updates_object obj
+      username = show $ from_id $ messageVK $ updates_object updates
     }
 
 -- Sending a request to VK to return a message.
 repeatMessageVk :: MessageDate -> StateT Environment IO (Response LC.ByteString)
-repeatMessageVk obj = do
+repeatMessageVk messageDate = do
   conf <- configuration <$> get
   randInt <- lift (randomRIO (1, 1000000) :: IO Int)
-  let userId = username $ chat $ message obj
-      str = case textM $ message obj of
-        Just messText -> messText
+  let userId = username $ chat $ message messageDate
+      msg = case textM $ message messageDate of
+        Just text -> text
         _ -> ""
-      arr = case attachments $ message obj of
+      mediaLs = case attachments $ message messageDate of
         Just ls -> ls
         _ -> []
-      add = case arr of
+      add = case mediaLs of
         [] -> ""
-        _ -> case type_media $ (\(x : _) -> x) arr of
-          "sticker" -> ""
+        _ -> case type_media <$> take 1 mediaLs of
+          ["sticker"] -> ""
           _ -> "&attachment="
       string =
         createStringRequest conf $
@@ -123,15 +123,15 @@ repeatMessageVk obj = do
               "&random_id=",
               show randInt,
               "&message=",
-              convertStringToUrl $ str ++ add ++ processAttachment arr userId
+              convertStringToUrl $ msg ++ add ++ processAttachment mediaLs userId
             ]
   writingLine DEBUG $ show string
   httpLBS string
 
 stringForCreateKeyboard :: MessageDate -> String -> String
-stringForCreateKeyboard obj question =
+stringForCreateKeyboard messageDate question =
   mconcat
-    [ username $ chat $ message obj,
+    [ username $ chat $ message messageDate,
       "&random_id=0",
       "&message=",
       convertStringToUrl question,
@@ -140,12 +140,12 @@ stringForCreateKeyboard obj question =
     ]
 
 stringComment :: MessageDate -> String -> String
-stringComment obj str =
+stringComment messageDate msg =
   mconcat
-    [ username $ chat $ message obj,
+    [ username $ chat $ message messageDate,
       "&random_id=0",
       "&message=",
-      convertStringToUrl str
+      convertStringToUrl msg
     ]
 
 -- Processing of attachments for VK.
@@ -182,12 +182,12 @@ getVkResponse = do
   let code = getResponseStatusCode resp
   if code == 200
     then do
-      let obj = eitherDecode $ getResponseBody resp
-      case obj of
+      let eitherVkResponse = eitherDecode $ getResponseBody resp
+      case eitherVkResponse of
         Left _ -> do
-          let str = errorProcessing resp
-          writingLine ERROR str
-          lift $ die str
+          let err = errorProcessing resp
+          writingLine ERROR err
+          lift $ die err
         Right vkResponse -> pure vkResponse
     else writingLine ERROR ("statusCode " ++ show code) >> getVkResponse
   where
@@ -217,8 +217,8 @@ getDataVk = do
       let req = parseRequest_ $ mconcat [serverVk, "?act=a_check&key=", keyVk, "&ts=", tsVk, "&wait=25"]
       resp <- connectToServer req 0
       writingLine DEBUG $ show req
-      let obj = eitherDecode $ getResponseBody resp
-      case obj of
+      let eitherVkData = eitherDecode $ getResponseBody resp
+      case eitherVkData of
         Left err -> do
           lift $ print $ getResponseBody resp
           writingLine ERROR err

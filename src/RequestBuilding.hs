@@ -48,19 +48,19 @@ createStringRequest conf str = parseRequest_ $
         ]
 
 getNumRepeats :: MessageDate -> Environment -> NumRepeats
-getNumRepeats obj env =
+getNumRepeats messageDate env =
   case Map.lookup usrName $ userData env of
     Nothing -> NumRepeats . defaultRepeats . configuration $ env
     Just num -> num
   where
-    usrName = Username . username $ chat $ message obj
+    usrName = Username . username $ chat $ message messageDate
 
 createQuestion :: MessageDate -> Environment -> String
-createQuestion obj env = do
-  let num = getNumRepeats obj env
+createQuestion messageDate env = do
+  let numRepeats = getNumRepeats messageDate env
   mconcat
     [ "Currently set to ",
-      show num,
+      show numRepeats,
       " repetitions.\n",
       messageRepeatCommand . configuration $ env
     ]
