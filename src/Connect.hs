@@ -28,14 +28,14 @@ import System.Exit (die)
 
 -- Function for connecting to the server.
 connectToServer :: Request -> Int -> StateT Environment IO (Response LC.ByteString)
-connectToServer req num = do
+connectToServer req retries = do
   resp <- lift . try . httpLBS $ req
   writingLine DEBUG $ show req
   case resp of
     Left cf@(HttpExceptionRequest _ (ConnectionFailure _)) ->
-      errorProcessing cf num
+      errorProcessing cf retries
     Left rt@(HttpExceptionRequest _ ResponseTimeout) ->
-      errorProcessing rt num
+      errorProcessing rt retries
     Left otherError -> do
       let err = show (otherError :: HttpException)
       writingLine ERROR err
@@ -43,7 +43,7 @@ connectToServer req num = do
     Right ans -> do
       writingLine DEBUG $ show ans
       lift $
-        when (num /= 0) $ do
+        when (retries /= 0) $ do
           getCurrentTime >>= print
           putStrLn "Connection restored"
       pure ans

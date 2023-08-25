@@ -63,27 +63,27 @@ handleKeywords ::
   WorkHandle m a b ->
   MessageDate ->
   StateT Environment m Command
-handleKeywords h@WorkHandle {..} obj = do
+handleKeywords h@WorkHandle {..} messageDate = do
   env <- get
-  let usrName = username $ chat $ message obj
+  let usrName = username $ chat $ message messageDate
       conf = configuration env
-  case textM $ message obj of
+  case textM $ message messageDate of
     Just "/repeat" -> do
       _ <- writingLineH INFO $ "Received /repeat from " ++ usrName
-      _ <- sendKeyboard h obj
+      _ <- sendKeyboard h messageDate
       fromServer <- getDataH
-      let arr = case result <$> fromServer of
-            Just messageDateLs -> messageDateLs
+      let messageDateLs = case result <$> fromServer of
+            Just msgDateLs -> msgDateLs
             _ -> []
-      _ <- handleRepeatCommand h obj arr
+      _ <- handleRepeatCommand h messageDate messageDateLs
       pure $ Report "Repeat"
     Just "/help" -> do
       _ <- do
         _ <- writingLineH INFO $ "Received /help from " ++ usrName
-        sendComment h obj $ mconcat $ messageHelpCommand conf
+        sendComment h messageDate $ mconcat $ messageHelpCommand conf
       pure Help
     _ -> do
-      _ <- sendRepeats h obj
+      _ <- sendRepeats h messageDate
       pure $ Report "not a keyword"
 
 -- Changing the number of repetitions.
@@ -93,23 +93,23 @@ handleRepeatCommand ::
   MessageDate ->
   [MessageDate] ->
   StateT Environment m Command
-handleRepeatCommand h@WorkHandle {..} obj [] = do
+handleRepeatCommand h@WorkHandle {..} messageDate [] = do
   fromServer <- getDataH
-  newArr <- case result <$> fromServer of
+  newMessageDateLs <- case result <$> fromServer of
     Just messageDateLs -> pure messageDateLs
     Nothing ->
       writingLineH ERROR "The array of messages is missing"
         >> pure [MessageDate 0 errorMessage]
-  _ <- handleRepeatCommand h obj newArr
+  _ <- handleRepeatCommand h messageDate newMessageDateLs
   pure $ Report "empty array"
-handleRepeatCommand h@WorkHandle {..} obj (x : xs) = do
+handleRepeatCommand h@WorkHandle {..} messageDate (x : xs) = do
   env <- get
-  let newObj = x
-      newEnv = Environment (addNumberH + update_id newObj) (userData env) (configuration env)
-      usrNameText = username . chat . message $ obj
+  let newMessageDate = x
+      newEnv = Environment (addNumberH + update_id newMessageDate) (userData env) (configuration env)
+      usrNameText = username . chat . message $ messageDate
       usrName = Username usrNameText
-      newUsrName = Username . username . chat . message $ newObj
-  numRepeats <- case textM (message newObj) >>= readMaybe of
+      newUsrName = Username . username . chat . message $ newMessageDate
+  numRepeats <- case textM (message newMessageDate) >>= readMaybe of
     Just int -> pure int
     Nothing -> writingLineH ERROR "No parse NumRepeats from message" >> pure 0
   if usrName == newUsrName -- We check that the message came from the user
@@ -118,7 +118,7 @@ handleRepeatCommand h@WorkHandle {..} obj (x : xs) = do
       if numRepeats `elem` [1 .. 5]
         then do
           _ <-
-            sendComment h obj $
+            sendComment h messageDate $
               "Done! Set up "
                 ++ show numRepeats
                 ++ " repeat(s)."
@@ -130,7 +130,7 @@ handleRepeatCommand h@WorkHandle {..} obj (x : xs) = do
                 ++ usrNameText
           put $
             Environment
-              (addNumberH + update_id newObj)
+              (addNumberH + update_id newMessageDate)
               ( Map.insert
                   usrName
                   (NumRepeats numRepeats)
@@ -139,29 +139,29 @@ handleRepeatCommand h@WorkHandle {..} obj (x : xs) = do
               (configuration env)
           pure $ Repeat numRepeats
         else do
-          _ <- sendRepeats h newObj
+          _ <- sendRepeats h newMessageDate
           put newEnv
           pure $ Report "number out of range"
     else do
-      _ <- handleKeywords h newObj
+      _ <- handleKeywords h newMessageDate
       put newEnv
-      _ <- handleRepeatCommand h obj xs
+      _ <- handleRepeatCommand h messageDate xs
       pure $ Report "another user"
 
 sendKeyboard :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m b
-sendKeyboard WorkHandle {..} obj = do
+sendKeyboard WorkHandle {..} messageDate = do
   env <- get
-  let question = createQuestion obj env
+  let question = createQuestion messageDate env
       conf = configuration env
-      string = stringForCreateKeyboardH obj question
+      string = stringForCreateKeyboardH messageDate question
       req = createStringRequest conf string
   _ <- writingLineH DEBUG $ show req
   sendHttpReqH req
 
 sendComment :: Monad m => WorkHandle m a b -> MessageDate -> String -> StateT Environment m b
-sendComment WorkHandle {..} obj str = do
+sendComment WorkHandle {..} messageDate msg = do
   conf <- configuration <$> get
-  let string = stringCommentH obj str
+  let string = stringCommentH messageDate msg
       req = createStringRequest conf string
   _ <- writingLineH DEBUG $ show req
   sendHttpReqH req

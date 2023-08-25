@@ -26,16 +26,16 @@ import Telegram.Handler (handlerTg)
 botLoop :: StateT Environment IO ()
 botLoop = do
   env <- get
-  obj <- getDataTg
+  maybeDataFromServer <- getDataTg
   let conf = configuration env
-  case obj of
+  case maybeDataFromServer of
     Nothing -> writingLine ERROR "Broken request!"
     _ -> do
-      let arr = case result <$> obj of
+      let messageDateLs = case result <$> maybeDataFromServer of
             Just [messageDate] -> [messageDate]
             _ -> []
-          update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
+          update_id' = if null messageDateLs then 0 else (\(x : _) -> update_id x) (reverse messageDateLs)
       put $ Environment (1 + update_id') (userData env) conf
       _ <- get
-      mapM_ (handleKeywords handlerTg) arr
+      mapM_ (handleKeywords handlerTg) messageDateLs
       botLoop

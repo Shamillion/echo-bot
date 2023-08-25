@@ -64,13 +64,13 @@ getDataTg = do
   if code == 200
     then
       ( do
-          let obj = decode $ getResponseBody resp
-          case result <$> obj of
+          let maybeDataFromServer = decode $ getResponseBody resp
+          case result <$> maybeDataFromServer of
             Just [] -> do
               put $ Environment 1 (userData env) (configuration env)
               getDataTg
             _ -> do
-              pure obj
+              pure maybeDataFromServer
       )
     else do
       writingLine ERROR $ "statusCode " ++ show code
@@ -80,14 +80,14 @@ getDataTg = do
 --  (Excludes processing of messages sent before the program is started).
 firstUpdateIDSession :: StateT Environment IO ()
 firstUpdateIDSession = do
-  obj <- getDataTg
+  maybeDataFromServer <- getDataTg
   env <- get
-  case obj of
+  case maybeDataFromServer of
     Nothing -> pure ()
     _ -> do
       lift $ getCurrentTime >>= print
       lift $ putStrLn "Connection established"
-      let update_id' = case result <$> obj of
+      let update_id' = case result <$> maybeDataFromServer of
             Just [] -> 0
             Just messageDateLs -> (\(x : _) -> update_id x) (reverse messageDateLs)
             _ -> 0
@@ -96,10 +96,10 @@ firstUpdateIDSession = do
         else put $ Environment (1 + update_id') (userData env) (configuration env)
 
 stringForCreateKeyboard :: MessageDate -> String -> String
-stringForCreateKeyboard obj question =
+stringForCreateKeyboard messageDate question =
   mconcat
     [ "/sendMessage?chat_id=",
-      show $ chat_id $ chat $ message obj,
+      show $ chat_id $ chat $ message messageDate,
       "&text=",
       convertStringToUrl question,
       "&reply_markup=",
@@ -107,20 +107,20 @@ stringForCreateKeyboard obj question =
     ]
 
 stringComment :: MessageDate -> String -> String
-stringComment obj str =
+stringComment messageDate msg =
   mconcat
     [ "/sendMessage?chat_id=",
-      show $ chat_id $ chat $ message obj,
+      show $ chat_id $ chat $ message messageDate,
       "&text=",
-      convertStringToUrl str
+      convertStringToUrl msg
     ]
 
 repeatMessageTg :: MessageDate -> StateT Environment IO (Response LC.ByteString)
-repeatMessageTg obj = do
+repeatMessageTg messageDate = do
   env <- get
   let conf = configuration env
-      messageId = show $ message_id $ message obj
-      chatId = show $ chat_id $ chat $ message obj
+      messageId = show $ message_id $ message messageDate
+      chatId = show $ chat_id $ chat $ message messageDate
       string =
         createStringRequest conf $
           mconcat

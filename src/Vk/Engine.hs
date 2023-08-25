@@ -6,8 +6,8 @@ import Control.Monad.State.Lazy
     put,
   )
 import Data
-  ( MessageDate (..),
-    DataFromServer (..),
+  ( DataFromServer (..),
+    MessageDate (..),
   )
 import Environment
   ( Environment (..),
@@ -34,19 +34,19 @@ botsLongPollAPI = do
   if lastUpdate env == 0
     then do
       resp <- getVkResponse
-      num <-
+      updateID <-
         UpdateID <$> case readEither . ts . response $ resp of
           Right int -> pure int
           Left err -> writingLine ERROR err >> pure 0
-      put $ Environment num (userData env) (configuration env)
+      put $ Environment updateID (userData env) (configuration env)
       botsLongPollAPI
     else do
-      getDtVk <- getDataVk
-      case getDtVk of
+      maybeDataFromServer <- getDataVk
+      case maybeDataFromServer of
         Nothing -> botsLongPollAPI
-        Just wholeObj -> do
-          let arr = result wholeObj
-              update_id' = if null arr then 0 else (\(x : _) -> update_id x) (reverse arr)
+        Just dataFromServer -> do
+          let messageDateLs = result dataFromServer
+              update_id' = if null messageDateLs then 0 else (\(x : _) -> update_id x) (reverse messageDateLs)
           put $ Environment update_id' (userData env) (configuration env)
-          mapM_ (handleKeywords handlerVk) arr
+          mapM_ (handleKeywords handlerVk) messageDateLs
           botsLongPollAPI

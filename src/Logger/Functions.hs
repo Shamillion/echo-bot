@@ -22,14 +22,14 @@ import Logger.Data
 
 -- Function writes information to log.
 writingLine :: Priority -> String -> StateT Environment IO ()
-writingLine lvl str = do
+writingLine level information = do
   conf <- configuration <$> get
-  if lvl >= priorityLevel conf
+  if level >= priorityLevel conf
     then do
       time' <- lift time
-      let string = time' ++ " UTC   " ++ showLevel lvl ++ " - " ++ str
-          out = logOutput conf
-      case out of
+      let string = time' ++ " UTC   " ++ showLevel level ++ " - " ++ information
+          outputDestinationType = logOutput conf
+      case outputDestinationType of
         "file" -> lift $ appendFile logFile $ string ++ "\n"
         _ -> lift $ print string
     else pure ()
