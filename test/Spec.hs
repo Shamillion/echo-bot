@@ -50,7 +50,6 @@ testConfig =
       logOutput = "cons"
     }
 
--- Handle for tests of echobot.
 handlerForTest :: WorkHandle Identity String String
 handlerForTest =
   WorkHandle

@@ -12,7 +12,6 @@ import Vk.Functions
     stringForCreateKeyboard,
   )
 
--- Handle for work of Vk echobot.
 handlerVk :: WorkHandle IO () (Response LC.ByteString)
 handlerVk =
   WorkHandle

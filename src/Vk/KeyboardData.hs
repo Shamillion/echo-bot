@@ -41,7 +41,6 @@ instance ToJSON KeyboardVk where
         "buttons" .= buttonsVk
       ]
 
--- Functions types for the VK keyboard.
 buttonVk :: Int -> ButtonVk
 buttonVk num =
   ButtonVk

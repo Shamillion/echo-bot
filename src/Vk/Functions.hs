@@ -148,7 +148,6 @@ stringComment messageDate msg =
       convertStringToUrl msg
     ]
 
--- Processing of attachments for VK.
 processAttachment :: [Media] -> String -> String
 processAttachment [] _ = ""
 processAttachment (x : xs) userId = case x of

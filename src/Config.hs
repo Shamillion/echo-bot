@@ -16,7 +16,6 @@ import Logger.Data
   )
 import System.Exit (die)
 
--- Data type for the configuration file.
 data Configuration = Configuration
   { messenger :: String,
     hostTG :: String,
@@ -33,7 +32,6 @@ data Configuration = Configuration
   }
   deriving (Show, Generic, FromJSON)
 
--- Getting information from configuration file.
 readConfigFile :: IO Configuration
 readConfigFile = do
   time' <- time
@@ -46,14 +44,12 @@ readConfigFile = do
       appendFile logFile $ str ++ "\n"
       die "Error reading the configuration file! Check out config.json!"
 
--- The host of selected messenger.
 myHost :: Configuration -> String
 myHost conf = do
   case messenger conf of
     "TG" -> hostTG conf
     _ -> hostVK conf
 
--- The token of selected messenger.
 myToken :: Configuration -> String
 myToken conf = do
   case messenger conf of
