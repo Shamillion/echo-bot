@@ -26,7 +26,6 @@ import Network.HTTP.Simple
   )
 import System.Exit (die)
 
--- Function for connecting to the server.
 connectToServer :: Request -> Int -> StateT Environment IO (Response LC.ByteString)
 connectToServer req retries = do
   resp <- lift . try . httpLBS $ req

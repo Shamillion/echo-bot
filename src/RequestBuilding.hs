@@ -28,7 +28,6 @@ import Data
     MessageDate (message),
   )
 
--- Request generation.
 createStringRequest :: Configuration -> String -> Request
 createStringRequest conf str = parseRequest_ $
   case messenger conf of

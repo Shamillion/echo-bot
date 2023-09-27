@@ -35,7 +35,6 @@ import RequestBuilding
   )
 import Text.Read (readMaybe)
 
--- Sending repetitions of request.
 sendRepeats :: Monad m => WorkHandle m a b -> MessageDate -> StateT Environment m a
 sendRepeats WorkHandle {..} obj = do
   env <- get
@@ -45,7 +44,6 @@ sendRepeats WorkHandle {..} obj = do
 data Command = Repeat Int | Help | Report String
   deriving (Eq, Show)
 
--- Handle Pattern
 data WorkHandle m a b = WorkHandle
   { writingLineH :: Priority -> String -> StateT Environment m a,
     getDataH :: StateT Environment m (Maybe DataFromServer),
